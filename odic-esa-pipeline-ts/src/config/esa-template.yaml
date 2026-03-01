@@ -1,0 +1,357 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# ODIC Environmental — Report Assembly Templates
+#
+# Defines the canonical page order for each report type.
+# Reverse-engineered from actual ODIC reports 6384578 and 6384642.
+#
+# The AI organizer uses this as its reference for where to place documents.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+company: "ODIC Environmental"
+company_address: "407 W. Imperial Hwy Suite H #303, Brea, CA 92821"
+company_phone: "213-380-0090"
+standard: "ASTM E1527-21"
+
+# ─── ESAI: Phase I Environmental Site Assessment ─────────────────────────────
+
+report_types:
+  - id: ESAI
+    title: "Phase I Environmental Site Assessment"
+    standard: "ASTM E1527-21"
+
+    # Front matter — always in this order
+    front_matter:
+      - id: front_cover
+        title: "Cover Page"
+        type: generated
+        required: true
+        description: "Title page: PHASE I ENVIRONMENTAL SITE ASSESSMENT, property address, project number, date, client, ODIC footer"
+
+      - id: front_transmittal
+        title: "Transmittal Letter"
+        type: generated
+        required: true
+        description: "ODIC letterhead letter to client, signed by EP"
+
+      - id: front_reliance
+        title: "Reliance Letter"
+        type: generated
+        required: false
+        condition: "sba_loan"
+        description: "SBA SOP 50 10 8 reliance letter addressed to lender. Only for SBA-backed loans."
+
+      - id: front_insurance
+        title: "E&O Insurance Certificate"
+        type: uploaded
+        required: true
+        document_types: [insurance_certificate]
+        description: "ACORD certificate of liability insurance"
+
+      - id: front_ep_declaration
+        title: "Environmental Professional Declaration"
+        type: uploaded
+        required: false
+        document_types: [ep_declaration]
+        description: "EP qualifications declaration statement"
+
+    # Table of contents — auto-generated after assembly
+    toc:
+      id: front_toc
+      title: "Table of Contents"
+      type: generated
+      description: "Auto-generated TOC with page numbers from final assembly"
+
+    # Report body sections
+    sections:
+      - id: body_executive_summary
+        number: ""
+        title: "Executive Summary"
+        type: generated
+        required: true
+        description: "AI-generated summary of findings with formatted tables"
+
+      - id: body_findings_recommendations
+        number: ""
+        title: "Findings and Recommendations"
+        type: generated
+        required: true
+        description: "Conclusions, RECs, HRECs, CRECs, de minimis conditions, recommendations"
+
+      - id: body_introduction
+        number: "1.0"
+        title: "Introduction"
+        type: narrative
+        required: true
+        description: "Purpose, scope, ASTM E1527-21 definitions, limitations, methodology"
+        subsections:
+          - { number: "1.1", title: "Purpose" }
+          - { number: "1.2", title: "Scope and Significant Assumptions" }
+          - { number: "1.3", title: "Limitations and Exceptions" }
+          - { number: "1.4", title: "Special Terms and Conditions" }
+          - { number: "1.5", title: "User Reliance" }
+
+      - id: body_property_description
+        number: "2.0"
+        title: "Property Description"
+        type: narrative
+        required: true
+        description: "Physical description of the subject property"
+        subsections:
+          - { number: "2.1", title: "Project Information" }
+          - { number: "2.2", title: "Property Improvements" }
+          - { number: "2.3", title: "Property Occupants and Use" }
+          - { number: "2.4", title: "Geology / Hydrogeology" }
+          - { number: "2.5", title: "Groundwater Information" }
+
+      - id: body_property_reconnaissance
+        number: "3.0"
+        title: "Property Reconnaissance"
+        type: narrative
+        required: true
+        description: "Site visit observations and findings"
+        subsections:
+          - { number: "3.1", title: "Limiting Conditions" }
+          - { number: "3.2", title: "Methodology and Observations" }
+          - { number: "3.3", title: "Interior/Exterior Observations" }
+          - { number: "3.4", title: "Current Uses of Adjoining Properties" }
+          - { number: "3.5", title: "Non-Scope, Non-CERCLA Items" }
+
+      - id: body_property_history
+        number: "4.0"
+        title: "Property and Vicinity History"
+        type: narrative
+        required: true
+        description: "Historical use review from multiple sources"
+        subsections:
+          - { number: "4.1", title: "History Summary / Previous Reports" }
+          - { number: "4.2", title: "Sanborn Map Company Fire Insurance Maps" }
+          - { number: "4.3", title: "Historical Aerial Photographs" }
+          - { number: "4.4", title: "Historical Topographic Maps" }
+          - { number: "4.5", title: "Historical City/Telephone Directories" }
+          - { number: "4.6", title: "Building Department Records" }
+          - { number: "4.7", title: "Oil and Gas Well Records" }
+          - { number: "4.8", title: "Other Historical Records" }
+
+      - id: body_records_research
+        number: "5.0"
+        title: "Standard Environmental Records Research"
+        type: narrative
+        required: true
+        description: "Regulatory database review and analysis"
+        subsections:
+          - { number: "5.1", title: "Procedure" }
+          - { number: "5.2", title: "Subject Property: Agency Listings" }
+          - { number: "5.3", title: "Surrounding Sites: Federal Agency Listings" }
+          - { number: "5.4", title: "Surrounding Sites: State/Local Agency Listings" }
+          - { number: "5.5", title: "Vapor Encroachment Condition" }
+
+      - id: body_user_information
+        number: "6.0"
+        title: "User Provided Information"
+        type: narrative
+        required: true
+        description: "Information provided by the client per AAI requirements"
+        subsections:
+          - { number: "6.1", title: "User Provided Information" }
+          - { number: "6.2", title: "Title Records" }
+          - { number: "6.3", title: "Interviews" }
+
+      - id: body_references
+        number: "7.0"
+        title: "References"
+        type: narrative
+        required: true
+        description: "Sources consulted during the assessment"
+
+      - id: body_sba_requirements
+        number: ""
+        title: "SBA Requirements"
+        type: narrative
+        required: false
+        condition: "sba_loan"
+        description: "SBA-specific requirements section. Only for SBA-backed loans."
+
+    # Appendices
+    appendices:
+      - id: appendix_a_maps
+        letter: "A"
+        title: "Property Location Map / Plot Plan"
+        required: true
+        document_types: [location_map, plot_plan]
+        description: "Figure 1: Site Location Map and Figure 2: Site Plot Plan with groundwater flow"
+
+      - id: appendix_b_photographs
+        letter: "B"
+        title: "Property & Vicinity Photographs"
+        required: true
+        document_types: [site_photograph]
+        description: "Current condition photos from site visit. Grid layout: 6 photos per page with captions."
+
+      - id: appendix_c_database_report
+        letter: "C"
+        title: "Regulatory Database Report"
+        required: true
+        document_types: [edr_report]
+        description: "EDR/Lightbox Radius Map Report. Typically 1000-3000+ pages."
+
+      - id: appendix_d_historical
+        letter: "D"
+        title: "Historical Records Research"
+        required: true
+        document_types: [sanborn_map, aerial_photograph, topographic_map, city_directory, fire_insurance_map]
+        ordering: chronological
+        description: "Sanborn maps, aerial photographs, topographic maps, city directories"
+
+      - id: appendix_e_agency_records
+        letter: "E"
+        title: "Public Agency Records / Other Relevant Documents"
+        required: false
+        document_types: [agency_records, regulatory_correspondence, title_record, tax_record, building_permit, prior_environmental_report, client_correspondence, supporting_document]
+        description: "FOIA responses, agency correspondence, permits, prior reports, supporting docs"
+
+      - id: appendix_f_qualifications
+        letter: "F"
+        title: "Qualifications of Environmental Professional"
+        required: true
+        document_types: [ep_qualifications]
+        description: "EP resume/CV at the very end of the report"
+
+  # ─── RSRA: Regulatory Search / Radius Analysis ──────────────────────────────
+
+  - id: RSRA
+    title: "Regulatory Search / Radius Analysis"
+    front_matter:
+      - { id: front_cover, title: "Cover Page", type: generated, required: true }
+      - { id: front_transmittal, title: "Transmittal Letter", type: generated, required: true }
+      - { id: front_insurance, title: "E&O Insurance Certificate", type: uploaded, required: true }
+    toc:
+      id: front_toc
+      title: "Table of Contents"
+      type: generated
+    sections:
+      - { id: body_executive_summary, number: "", title: "Executive Summary", type: generated, required: true }
+      - { id: body_introduction, number: "1.0", title: "Introduction", type: narrative, required: true }
+      - { id: body_records_research, number: "2.0", title: "Environmental Records Research", type: narrative, required: true }
+      - { id: body_references, number: "3.0", title: "References", type: narrative, required: true }
+    appendices:
+      - { id: appendix_c_database_report, letter: "A", title: "Regulatory Database Report", required: true, document_types: [edr_report] }
+      - { id: appendix_e_agency_records, letter: "B", title: "Supporting Documents", required: false, document_types: [supporting_document] }
+
+  # ─── DRV: Database Radius Verification ──────────────────────────────────────
+
+  - id: DRV
+    title: "Database Radius Verification"
+    front_matter:
+      - { id: front_cover, title: "Cover Page", type: generated, required: true }
+      - { id: front_transmittal, title: "Transmittal Letter", type: generated, required: true }
+      - { id: front_insurance, title: "E&O Insurance Certificate", type: uploaded, required: true }
+    toc:
+      id: front_toc
+      title: "Table of Contents"
+      type: generated
+    sections:
+      - { id: body_executive_summary, number: "", title: "Executive Summary", type: generated, required: true }
+      - { id: body_introduction, number: "1.0", title: "Introduction", type: narrative, required: true }
+      - { id: body_records_research, number: "2.0", title: "Database Review", type: narrative, required: true }
+      - { id: body_references, number: "3.0", title: "References", type: narrative, required: true }
+    appendices:
+      - { id: appendix_c_database_report, letter: "A", title: "Regulatory Database Report", required: true, document_types: [edr_report] }
+
+  # ─── ECA: Environmental Compliance Audit ────────────────────────────────────
+
+  - id: ECA
+    title: "Environmental Compliance Audit"
+    front_matter:
+      - { id: front_cover, title: "Cover Page", type: generated, required: true }
+      - { id: front_transmittal, title: "Transmittal Letter", type: generated, required: true }
+      - { id: front_insurance, title: "E&O Insurance Certificate", type: uploaded, required: true }
+    toc:
+      id: front_toc
+      title: "Table of Contents"
+      type: generated
+    sections:
+      - { id: body_executive_summary, number: "", title: "Executive Summary", type: generated, required: true }
+      - { id: body_introduction, number: "1.0", title: "Introduction", type: narrative, required: true }
+      - { id: body_property_description, number: "2.0", title: "Property Description", type: narrative, required: true }
+      - { id: body_property_reconnaissance, number: "3.0", title: "Property Reconnaissance", type: narrative, required: true }
+      - { id: body_references, number: "4.0", title: "References", type: narrative, required: true }
+    appendices:
+      - { id: appendix_b_photographs, letter: "A", title: "Photographs", required: true, document_types: [site_photograph] }
+      - { id: appendix_e_agency_records, letter: "B", title: "Supporting Documents", required: false, document_types: [supporting_document] }
+
+  # ─── ESAII / PHASE2: Phase II Environmental Site Assessment ─────────────────
+
+  - id: ESAII
+    title: "Phase II Environmental Site Assessment"
+    front_matter:
+      - { id: front_cover, title: "Cover Page", type: generated, required: true }
+      - { id: front_transmittal, title: "Transmittal Letter", type: generated, required: true }
+      - { id: front_insurance, title: "E&O Insurance Certificate", type: uploaded, required: true }
+    toc:
+      id: front_toc
+      title: "Table of Contents"
+      type: generated
+    sections:
+      - { id: body_executive_summary, number: "", title: "Executive Summary", type: generated, required: true }
+      - { id: body_findings_recommendations, number: "", title: "Findings and Recommendations", type: generated, required: true }
+      - { id: body_introduction, number: "1.0", title: "Introduction", type: narrative, required: true }
+      - { id: body_property_description, number: "2.0", title: "Site Description", type: narrative, required: true }
+      - { id: body_property_reconnaissance, number: "3.0", title: "Field Activities", type: narrative, required: true }
+      - { id: body_references, number: "4.0", title: "References", type: narrative, required: true }
+    appendices:
+      - { id: appendix_a_maps, letter: "A", title: "Location Map / Plot Plan", required: true, document_types: [location_map, plot_plan] }
+      - { id: appendix_b_photographs, letter: "B", title: "Photographs", required: true, document_types: [site_photograph] }
+      - { id: appendix_g_lab_results, letter: "C", title: "Laboratory Results", required: true, document_types: [lab_result] }
+      - { id: appendix_h_boring_logs, letter: "D", title: "Boring Logs", required: true, document_types: [boring_log] }
+      - { id: appendix_e_agency_records, letter: "E", title: "Supporting Documents", required: false, document_types: [supporting_document] }
+      - { id: appendix_f_qualifications, letter: "F", title: "EP Qualifications", required: true, document_types: [ep_qualifications] }
+
+  # ─── IAQ: Indoor Air Quality ────────────────────────────────────────────────
+
+  - id: IAQ
+    title: "Indoor Air Quality Assessment"
+    front_matter:
+      - { id: front_cover, title: "Cover Page", type: generated, required: true }
+      - { id: front_transmittal, title: "Transmittal Letter", type: generated, required: true }
+      - { id: front_insurance, title: "E&O Insurance Certificate", type: uploaded, required: true }
+    toc:
+      id: front_toc
+      title: "Table of Contents"
+      type: generated
+    sections:
+      - { id: body_executive_summary, number: "", title: "Executive Summary", type: generated, required: true }
+      - { id: body_introduction, number: "1.0", title: "Introduction", type: narrative, required: true }
+      - { id: body_property_description, number: "2.0", title: "Property Description", type: narrative, required: true }
+      - { id: body_property_reconnaissance, number: "3.0", title: "Sampling Methodology", type: narrative, required: true }
+      - { id: body_references, number: "4.0", title: "References", type: narrative, required: true }
+    appendices:
+      - { id: appendix_b_photographs, letter: "A", title: "Photographs", required: true, document_types: [site_photograph] }
+      - { id: appendix_g_lab_results, letter: "B", title: "Laboratory Results", required: true, document_types: [lab_result] }
+      - { id: appendix_e_agency_records, letter: "C", title: "Supporting Documents", required: false, document_types: [supporting_document] }
+
+# ─── Page Formatting ────────────────────────────────────────────────────────
+
+formatting:
+  page_header: "Phase I Environmental Site Assessment Report"
+  project_number_line: "Project No. {project_id}"
+  page_number_format: "- {page} -"
+  footer: "ODIC Environmental"
+
+  section_headers:
+    major: { bold: true, size: 14 }
+    subsection: { bold: true, size: 12, small_caps: true }
+
+  tables:
+    header_background: "#D9D9D9"
+    border: true
+
+  appendix_dividers:
+    header: "Odic Environmental"
+    appendix_label: "APPENDIX {letter}"
+    subtitle_style: "small_caps"
+
+  photo_grid:
+    columns: 2
+    rows: 3
+    caption_below: true
+    header: "Odic Environmental"

@@ -1,0 +1,108 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# ODIC Environmental — Phase I ESA Pipeline Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+ftp:
+  host: ""
+  port: 22
+  username: ""
+  password: ""
+  protocol: sftp       # sftp or ftp
+  watch_directory: "~/Desktop/ODIC-FTP-Demo/incoming"
+  poll_interval_seconds: 5
+  download_directory: "./downloads"
+  server:
+    enabled: true
+    port: 2222
+    username: "odic"
+    password: "odic-dev"
+    host_key_path: "./.ssh/host_key"
+  watch_mode: "sftp"   # "sftp" or "folder"
+  remote:
+    enabled: false
+    host: ""
+    port: 21
+    username: ""
+    password: ""
+    protocol: "ftp"       # ftp or sftp
+    watch_directory: "/projects"
+    poll_interval_seconds: 300
+
+llm:
+  api_key_env: "ANTHROPIC_API_KEY"
+  classifier_model: "claude-haiku-4-5-20251001"
+  reasoning_model: "claude-sonnet-4-5-20250929"
+  max_retries: 3
+  timeout_seconds: 120
+  max_pages_for_classification: 10
+  max_images_for_classification: 3
+
+pipeline:
+  project_base_dir: "./projects"
+  output_dir: "./completed_reports"
+  max_concurrent_projects: 5
+  auto_assemble_when_complete: false   # Require Rose's approval after triage
+  page_integrity_check: true
+  classification_concurrency: 8        # Parallel claude -p calls during classify step
+
+qa:
+  minimum_sections_required: 8
+  require_site_photos: true
+  require_edr: true
+  require_topo: true
+  minimum_passing_score: 0.80
+
+compression:
+  enabled: true
+  max_file_size_mb: 50
+  target_dpi: 150
+
+notifications:
+  type: "email"
+  recipients: []
+  smtp_host: ""
+  smtp_port: 587
+  smtp_user: ""
+  smtp_pass_env: "SMTP_PASSWORD"
+  slack_webhook_env: "SLACK_WEBHOOK_URL"
+
+dashboard:
+  host: "0.0.0.0"
+  port: 8080
+
+# Research config for address-based research
+research:
+  geocoding_provider: "nominatim"
+  google_maps_api_key_env: "GOOGLE_MAPS_API_KEY"
+  epa_search_radius_miles: 1.0
+  max_vision_images_per_doc: 4
+  vision_image_max_width: 1024
+  enable_satellite_imagery: true
+  enable_california_databases: true
+
+# Email delivery — send completed reports to clients
+email_delivery:
+  enabled: false
+  provider: "smtp"             # smtp, gmail, or sendgrid
+  from_name: "ODIC Environmental"
+  from_email: ""
+  reply_to: ""
+  cc_list: []
+  bcc_list: []
+  auto_deliver: false          # Auto-email when pipeline completes
+  smtp:
+    host: ""
+    port: 587
+    secure: false
+    user: ""
+    pass_env: "SMTP_PASSWORD"
+  # gmail:
+  #   user: ""
+  #   client_id_env: "GMAIL_CLIENT_ID"
+  #   client_secret_env: "GMAIL_CLIENT_SECRET"
+  #   refresh_token_env: "GMAIL_REFRESH_TOKEN"
+  # sendgrid:
+  #   api_key_env: "SENDGRID_API_KEY"
+  rate_limit:
+    max_per_hour: 10
+    max_per_day: 50

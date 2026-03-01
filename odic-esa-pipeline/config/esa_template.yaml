@@ -1,0 +1,231 @@
+# ODIC ESA Pipeline - Phase I ESA Report Template
+# Defines the section structure and ordering for ESA reports
+
+phase1_esa:
+  name: "Phase I Environmental Site Assessment"
+  standard: "ASTM E1527-21"
+  version: "1.0"
+
+  sections:
+    - id: cover_page
+      name: "Cover Page"
+      required: true
+      auto_generated: true
+      content_source: "template"
+
+    - id: toc
+      name: "Table of Contents"
+      required: true
+      auto_generated: true
+      content_source: "generated"
+
+    - id: executive_summary
+      name: "Executive Summary"
+      required: true
+      auto_generated: false
+      content_source: "llm"
+      description: "Summary of findings, conclusions, and recommendations"
+
+    - id: introduction
+      name: "1.0 Introduction"
+      required: true
+      auto_generated: false
+      content_source: "llm"
+      sub_sections:
+        - id: purpose
+          name: "1.1 Purpose"
+        - id: scope
+          name: "1.2 Scope of Services"
+        - id: limitations
+          name: "1.3 Limitations and Exceptions"
+        - id: special_terms
+          name: "1.4 Special Terms and Conditions"
+
+    - id: site_description
+      name: "2.0 Site Description"
+      required: true
+      auto_generated: false
+      content_source: "llm"
+      sub_sections:
+        - id: location
+          name: "2.1 Location and Legal Description"
+        - id: site_vicinity
+          name: "2.2 Site and Vicinity General Characteristics"
+        - id: current_use
+          name: "2.3 Current Use of the Property"
+        - id: adjacent_properties
+          name: "2.4 Description of Adjoining Properties"
+
+    - id: user_provided_info
+      name: "3.0 User Provided Information"
+      required: true
+      auto_generated: false
+      content_source: "llm"
+      doc_types:
+        - "client_correspondence"
+      sub_sections:
+        - id: title_records
+          name: "3.1 Title Records"
+        - id: environmental_liens
+          name: "3.2 Environmental Liens or Activity Use Limitations"
+        - id: specialized_knowledge
+          name: "3.3 Specialized Knowledge"
+        - id: purchase_price
+          name: "3.4 Commonly Known or Reasonably Ascertainable Information"
+        - id: owner_info
+          name: "3.5 Valuation Reduction for Environmental Issues"
+
+    - id: records_review
+      name: "4.0 Records Review"
+      required: true
+      auto_generated: false
+      content_source: "llm"
+      sub_sections:
+        - id: edr_report
+          name: "4.1 Environmental Database Report"
+          doc_types:
+            - "edr"
+          description: "Review of federal, state, and local environmental databases"
+
+        - id: regulatory_records
+          name: "4.2 Regulatory Agency Records"
+          doc_types:
+            - "regulatory_correspondence"
+          description: "Review of records from regulatory agencies"
+
+        - id: historical_use
+          name: "4.3 Historical Use Information"
+          doc_types:
+            - "sanborn_map"
+            - "city_directory"
+            - "fire_insurance_map"
+            - "title_record"
+            - "tax_record"
+            - "building_permit"
+          description: "Review of historical records documenting past uses"
+
+    - id: historical_review
+      name: "5.0 Historical Review"
+      required: true
+      auto_generated: false
+      content_source: "llm"
+      sub_sections:
+        - id: aerial_photos
+          name: "5.1 Aerial Photographs"
+          doc_types:
+            - "aerial_photograph"
+          description: "Review of historical aerial photographs"
+
+        - id: topo_maps
+          name: "5.2 Topographic Maps"
+          doc_types:
+            - "topographic_map"
+          description: "Review of USGS topographic maps"
+
+        - id: sanborn_maps
+          name: "5.3 Sanborn Maps"
+          doc_types:
+            - "sanborn_map"
+          description: "Review of Sanborn fire insurance maps"
+
+    - id: site_reconnaissance
+      name: "6.0 Site Reconnaissance"
+      required: true
+      auto_generated: false
+      content_source: "llm"
+      doc_types:
+        - "site_photograph"
+      sub_sections:
+        - id: methodology
+          name: "6.1 Methodology and Limiting Conditions"
+        - id: general_setting
+          name: "6.2 General Site Setting"
+        - id: exterior_observations
+          name: "6.3 Exterior Observations"
+        - id: interior_observations
+          name: "6.4 Interior Observations"
+
+    - id: interviews
+      name: "7.0 Interviews"
+      required: true
+      auto_generated: false
+      content_source: "llm"
+      sub_sections:
+        - id: interview_owner
+          name: "7.1 Interview with Owner"
+        - id: interview_occupants
+          name: "7.2 Interview with Site Occupants"
+        - id: interview_local
+          name: "7.3 Interview with Local Government Officials"
+
+    - id: findings
+      name: "8.0 Findings and Opinions"
+      required: true
+      auto_generated: false
+      content_source: "llm"
+      description: "Summary of environmental conditions identified"
+
+    - id: conclusions
+      name: "9.0 Conclusions"
+      required: true
+      auto_generated: false
+      content_source: "llm"
+      description: "Professional conclusions and recommendations"
+
+    - id: qualifications
+      name: "10.0 Qualifications"
+      required: true
+      auto_generated: true
+      content_source: "template"
+      description: "Environmental professional qualifications"
+
+    - id: appendices
+      name: "Appendices"
+      required: true
+      auto_generated: false
+      content_source: "documents"
+      sub_sections:
+        - id: appendix_a
+          name: "Appendix A - Site Photographs"
+          doc_types:
+            - "site_photograph"
+
+        - id: appendix_b
+          name: "Appendix B - Historical Maps and Aerials"
+          doc_types:
+            - "sanborn_map"
+            - "topographic_map"
+            - "aerial_photograph"
+            - "fire_insurance_map"
+
+        - id: appendix_c
+          name: "Appendix C - EDR Report"
+          doc_types:
+            - "edr"
+
+        - id: appendix_d
+          name: "Appendix D - Regulatory Correspondence"
+          doc_types:
+            - "regulatory_correspondence"
+
+        - id: appendix_e
+          name: "Appendix E - User Questionnaire"
+          doc_types:
+            - "client_correspondence"
+
+        - id: appendix_f
+          name: "Appendix F - Previous Environmental Reports"
+          doc_types:
+            - "prior_environmental_report"
+          optional: true
+
+# Required documents for a complete Phase I ESA
+required_documents:
+  minimum:
+    - "edr"
+    - "topographic_map"
+    - "site_photograph"
+  recommended:
+    - "sanborn_map"
+    - "aerial_photograph"
+    - "city_directory"

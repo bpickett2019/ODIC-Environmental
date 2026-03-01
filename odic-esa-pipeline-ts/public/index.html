@@ -1,0 +1,2800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ODIC Environmental — AI Report Assembly</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    :root {
+      --bg: #f9f9f8;
+      --sidebar: #171717;
+      --sidebar-hover: #2a2a2a;
+      --accent: #0F4A2E;
+      --accent-light: #E8F5E9;
+      --text: #1a1a1a;
+      --text-muted: #6b6b6b;
+      --border: #e5e5e5;
+      --thinking-bg: #f7f5ee;
+      --thinking-border: #e8e4d4;
+    }
+    * { box-sizing: border-box; margin: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+    .sidebar { width: 260px; background: var(--sidebar); color: #eee; display: flex; flex-direction: column; height: 100vh; position: fixed; left: 0; top: 0; }
+    .sidebar-header { padding: 16px 20px; border-bottom: 1px solid #333; }
+    .sidebar-item { padding: 10px 16px; margin: 2px 8px; border-radius: 8px; cursor: pointer; font-size: 14px; color: #ccc; transition: background 0.15s; display: flex; align-items: center; gap: 10px; }
+    .sidebar-item:hover { background: var(--sidebar-hover); color: white; }
+    .sidebar-item.active { background: var(--sidebar-hover); color: white; }
+
+    .main { margin-left: 260px; height: 100vh; display: flex; flex-direction: column; }
+    .chat-area { flex: 1; overflow-y: auto; padding: 24px 0; }
+    .chat-inner { max-width: 800px; margin: 0 auto; width: 100%; padding: 0 24px; }
+
+    /* Thinking block */
+    .thinking-block { background: var(--thinking-bg); border: 1px solid var(--thinking-border); border-radius: 12px; margin: 12px 0; overflow: hidden; }
+    .thinking-header { padding: 10px 16px; display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+    .thinking-header .label { font-size: 13px; font-weight: 600; color: #8b7e56; }
+    .thinking-header .chevron { margin-left: auto; color: #8b7e56; font-size: 12px; transition: transform 0.2s; }
+    .thinking-header .chevron.open { transform: rotate(180deg); }
+    .thinking-body { padding: 0 16px 12px; font-size: 13px; color: #6b6155; line-height: 1.6; max-height: 400px; overflow-y: auto; }
+    .step { padding: 3px 0; display: flex; align-items: flex-start; gap: 8px; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+    .dot.done { background: #0F4A2E; }
+    .dot.active { background: #f59e0b; animation: pulse 1.5s infinite; }
+    .dot.pending { background: #d1d5db; }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .spinner { width: 16px; height: 16px; border: 2px solid #d4c9a8; border-top-color: #8b7e56; border-radius: 50%; animation: spin 0.8s linear infinite; }
+
+    /* Artifact */
+    .artifact { background: white; border: 1px solid var(--border); border-radius: 12px; margin: 16px 0; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .artifact-header { padding: 12px 16px; background: #fafaf8; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+    .artifact-header .title { font-size: 13px; font-weight: 600; }
+    .artifact-header .subtitle { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+    .artifact-body { padding: 16px; }
+
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+    .stat-card { padding: 10px; border-radius: 8px; text-align: center; }
+    .stat-card .value { font-size: 22px; font-weight: 700; }
+    .stat-card .label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .result-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .result-table th { text-align: left; padding: 8px 10px; font-weight: 600; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+    .result-table td { padding: 8px 10px; border-bottom: 1px solid #f3f3f0; }
+    .result-table tr:last-child td { border-bottom: none; }
+    .result-table tr.clickable-row { cursor: pointer; }
+    .result-table tr.clickable-row:hover td { background: #f0f9ff; }
+
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-yellow { background: #fef9c3; color: #854d0e; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-gray { background: #f3f4f6; color: #374151; }
+
+    /* AI message */
+    .ai-msg { padding: 12px 0; font-size: 15px; line-height: 1.6; }
+    .ai-msg strong { font-weight: 600; }
+
+    /* Upload zone */
+    .upload-zone { border: 2px dashed #d1d5db; border-radius: 16px; padding: 60px 40px; text-align: center; cursor: pointer; transition: all 0.2s; background: white; margin: 60px 0; }
+    .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: var(--accent-light); }
+    .upload-zone.has-files { padding: 30px 40px; }
+
+    /* Download button */
+    .download-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 24px; background: var(--accent); color: white; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; width: 100%; transition: opacity 0.15s; }
+    .download-btn:hover { opacity: 0.9; }
+
+    .reset-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 20px; background: white; color: var(--text); border: 1px solid var(--border); border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 10px; width: 100%; }
+    .reset-btn:hover { background: #f5f5f5; }
+
+    /* Action buttons inline */
+    .action-btn { padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: white; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .action-btn:hover { background: #f5f5f5; }
+    .action-btn.danger { color: #dc2626; border-color: #fca5a5; }
+    .action-btn.danger:hover { background: #fef2f2; }
+    .excluded-row { opacity: 0.45; }
+    .excluded-row td { text-decoration: line-through; }
+
+    /* Toggle switch */
+    .toggle { position: relative; width: 36px; height: 20px; border-radius: 10px; background: #d1d5db; cursor: pointer; transition: background 0.2s; flex-shrink: 0; }
+    .toggle.on { background: var(--accent); }
+    .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: white; transition: transform 0.2s; }
+    .toggle.on::after { transform: translateX(16px); }
+
+    /* Section select */
+    .section-select { padding: 3px 6px; border-radius: 6px; border: 1px solid var(--border); font-size: 11px; background: white; cursor: pointer; max-width: 140px; }
+
+    /* Pre-check button */
+    .precheck-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; background: #1e40af; color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; margin: 12px 0; transition: opacity 0.15s; }
+    .precheck-btn:hover { opacity: 0.9; }
+    .precheck-btn:disabled { background: #9ca3af; cursor: default; }
+
+    /* Address research input */
+    .research-input { display: flex; gap: 8px; margin-bottom: 20px; }
+    .research-input input { flex: 1; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; outline: none; }
+    .research-input input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(15,74,46,0.1); }
+    .research-input button { padding: 12px 20px; background: var(--accent); color: white; border: none; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap; }
+    .research-input button:hover { opacity: 0.9; }
+    .research-input button:disabled { background: #9ca3af; cursor: default; }
+
+    /* Site visit mode */
+    .site-visit-bar { display: flex; gap: 8px; padding: 12px 16px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+    .sv-btn { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); background: white; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .sv-btn:hover { background: #f5f5f5; }
+    .sv-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .sv-status { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+
+    .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin-top: 10px; }
+    .photo-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+
+    .obs-card { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); margin-top: 6px; font-size: 13px; display: flex; gap: 8px; align-items: flex-start; }
+    .obs-card .cat { font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; background: #f3f4f6; white-space: nowrap; }
+    .obs-card.concern { border-color: #fca5a5; background: #fef2f2; }
+    .obs-card.concern .cat { background: #fee2e2; color: #991b1b; }
+
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+      .sidebar { width: 100%; height: auto; position: relative; flex-direction: row; align-items: center; padding: 8px 16px; }
+      .sidebar.mobile-hidden { display: none; }
+      .sidebar-header { padding: 0; border-bottom: none; }
+      .sidebar-header > div:last-child { display: none; }
+      .main { margin-left: 0; height: auto; min-height: 100vh; }
+      .chat-inner { padding: 0 12px; }
+      .upload-zone { padding: 40px 20px; margin: 30px 0; }
+      .stat-grid { grid-template-columns: repeat(2, 1fr); }
+      .result-table { font-size: 12px; }
+      .result-table th, .result-table td { padding: 6px 4px; }
+      .hamburger { display: block; position: fixed; top: 8px; left: 8px; z-index: 100; padding: 6px 10px; background: var(--sidebar); color: white; border: none; border-radius: 6px; font-size: 18px; cursor: pointer; }
+      .research-input { flex-direction: column; }
+      .research-input button { width: 100%; }
+    }
+    @media (min-width: 769px) {
+      .hamburger { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef, useEffect, useCallback, useMemo } = React;
+
+    function ThinkingBlock({ title, steps, active }) {
+      const [open, setOpen] = useState(true);
+      const bodyRef = useRef(null);
+      useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight; }, [steps]);
+      return (
+        <div className="thinking-block">
+          <div className="thinking-header" onClick={() => setOpen(!open)}>
+            <div>{active ? <div className="spinner"></div> : <span style={{color:'#0F4A2E',fontSize:14}}>&#10003;</span>}</div>
+            <div className="label">{title}</div>
+            <div className={'chevron '+(open?'open':'')}>&#9660;</div>
+          </div>
+          {open && (
+            <div className="thinking-body" ref={bodyRef}>
+              {steps.map((s, i) => (
+                <div className="step" key={i}><div className={'dot '+s.status}></div><div>{s.text}</div></div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function Artifact({ icon, title, subtitle, children }) {
+      return (
+        <div className="artifact">
+          <div className="artifact-header">
+            <span style={{fontSize:16}}>{icon}</span>
+            <span className="title">{title}</span>
+            {subtitle && <span className="subtitle">{subtitle}</span>}
+          </div>
+          <div className="artifact-body">{children}</div>
+        </div>
+      );
+    }
+
+    // ── PDF Review & Edit Panel ──────────────────────────────────────────────
+    function PDFReviewPanel({ projectId, onClose, onSaved }) {
+      const [loading, setLoading] = useState(true);
+      const [loadError, setLoadError] = useState(null);
+      const [pdfDoc, setPdfDoc] = useState(null);
+      const [insertDocs, setInsertDocs] = useState({});   // tempId → pdfjsDoc
+      const [manifest, setManifest] = useState(null);
+      const [pageOrder, setPageOrder] = useState([]);     // [{type,page} | {type,tempId,page}]
+      const [originalCount, setOriginalCount] = useState(0);
+      const [selectedIdx, setSelectedIdx] = useState(0);
+      const [thumbs, setThumbs] = useState({});           // cacheKey → dataURL
+      const [saving, setSaving] = useState(false);
+      const [hasOriginal, setHasOriginal] = useState(false);
+      const [toast, setToast] = useState(null);
+      const [insertModal, setInsertModal] = useState(null);
+      // insertModal: { afterIdx, tempId, filename, pageCount, pdfJsDoc, selectedPages: Set }
+
+      const renderQueue = useRef([]);
+      const renderActive = useRef(false);
+      const queuedKeys = useRef(new Set());
+      const viewerRef = useRef(null);
+      const insertFileRef = useRef(null);
+      const pendingInsertAfterIdx = useRef(null);
+
+      // ── Thumbnail rendering queue ──────────────────────────────────────────
+      const processRenderQueue = useCallback(async () => {
+        if (renderActive.current) return;
+        renderActive.current = true;
+        while (renderQueue.current.length > 0) {
+          const { key, doc, pageNum } = renderQueue.current.shift();
+          try {
+            const page = await doc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 0.3 });
+            const canvas = document.createElement('canvas');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+            const url = canvas.toDataURL('image/jpeg', 0.7);
+            setThumbs(prev => ({ ...prev, [key]: url }));
+          } catch {}
+        }
+        renderActive.current = false;
+      }, []);
+
+      const enqueueThumb = useCallback((key, doc, pageNum) => {
+        if (queuedKeys.current.has(key)) return;
+        queuedKeys.current.add(key);
+        renderQueue.current.push({ key, doc, pageNum });
+        processRenderQueue();
+      }, [processRenderQueue]);
+
+      // ── Init ──────────────────────────────────────────────────────────────
+      useEffect(() => {
+        if (!window.pdfjsLib) { setLoadError('PDF.js not loaded'); setLoading(false); return; }
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        fetch(`/uploads/${projectId}/assembled-original.pdf`, { method: 'HEAD' })
+          .then(r => setHasOriginal(r.ok)).catch(() => {});
+
+        fetch(`/api/projects/${projectId}/manifest`)
+          .then(r => r.ok ? r.json() : null).then(m => setManifest(m)).catch(() => {});
+
+        window.pdfjsLib.getDocument(`/api/projects/${projectId}/view`).promise
+          .then(doc => {
+            const n = doc.numPages;
+            setPdfDoc(doc);
+            setOriginalCount(n);
+            setPageOrder(Array.from({ length: n }, (_, i) => ({ type: 'original', page: i + 1 })));
+            setLoading(false);
+          })
+          .catch(err => { setLoadError(err.message || 'Failed to load PDF'); setLoading(false); });
+      }, [projectId]);
+
+      // ── Queue thumbnails when pageOrder changes ────────────────────────────
+      useEffect(() => {
+        if (!pdfDoc) return;
+        for (const entry of pageOrder) {
+          const key = entry.type === 'original' ? `orig:${entry.page}` : `ins:${entry.tempId}:${entry.page}`;
+          const doc = entry.type === 'original' ? pdfDoc : insertDocs[entry.tempId];
+          if (doc) enqueueThumb(key, doc, entry.page);
+        }
+      }, [pageOrder, pdfDoc, insertDocs, enqueueThumb]);
+
+      // ── Viewer: render selected page ───────────────────────────────────────
+      useEffect(() => {
+        if (!pdfDoc || !viewerRef.current) return;
+        const entry = pageOrder[selectedIdx];
+        if (!entry) return;
+        const doc = entry.type === 'original' ? pdfDoc : insertDocs[entry.tempId];
+        if (!doc) return;
+        let cancelled = false;
+        let renderTask = null;
+        (async () => {
+          try {
+            const page = await doc.getPage(entry.page);
+            if (cancelled) return;
+            const container = viewerRef.current;
+            if (!container) return;
+            const cw = container.clientWidth || 640;
+            const vp0 = page.getViewport({ scale: 1 });
+            const scale = Math.min(2, cw / vp0.width);
+            const vp = page.getViewport({ scale });
+            let canvas = container.querySelector('canvas');
+            if (!canvas) { canvas = document.createElement('canvas'); container.innerHTML = ''; container.appendChild(canvas); }
+            canvas.width = vp.width;
+            canvas.height = vp.height;
+            canvas.style.width = '100%';
+            renderTask = page.render({ canvasContext: canvas.getContext('2d'), viewport: vp });
+            await renderTask.promise;
+          } catch (err) {
+            if (err?.name !== 'RenderingCancelledException') console.error('viewer render:', err);
+          }
+        })();
+        return () => { cancelled = true; try { renderTask?.cancel(); } catch {} };
+      }, [selectedIdx, pageOrder, pdfDoc, insertDocs]);
+
+      // ── Section start map from manifest ───────────────────────────────────
+      const sectionStartMap = useMemo(() => {
+        if (!manifest?.sections) return {};
+        const map = {};
+        for (const sec of manifest.sections) {
+          if (sec.documents?.length > 0) {
+            const firstPage = Math.min(...sec.documents.map(d => d.pageStart));
+            if (!(firstPage in map)) map[firstPage] = sec.section;
+          }
+        }
+        return map;
+      }, [manifest]);
+
+      // ── Page operations ────────────────────────────────────────────────────
+      const deletePage = (idx) => {
+        setPageOrder(prev => prev.filter((_, i) => i !== idx));
+        setSelectedIdx(prev => Math.min(prev, Math.max(0, pageOrder.length - 2)));
+      };
+
+      const movePage = (idx, dir) => {
+        const swap = idx + dir;
+        if (swap < 0 || swap >= pageOrder.length) return;
+        const next = [...pageOrder];
+        [next[idx], next[swap]] = [next[swap], next[idx]];
+        setPageOrder(next);
+        setSelectedIdx(swap);
+      };
+
+      const openInsertPicker = (afterIdx) => {
+        pendingInsertAfterIdx.current = afterIdx;
+        insertFileRef.current?.click();
+      };
+
+      const handleInsertFile = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        e.target.value = '';
+        const afterIdx = pendingInsertAfterIdx.current;
+        const fd = new FormData();
+        fd.append('file', file);
+        try {
+          const resp = await fetch(`/api/projects/${projectId}/upload-insert`, { method: 'POST', body: fd });
+          if (!resp.ok) { const err = await resp.json(); throw new Error(err.error); }
+          const { tempId, pageCount, filename } = await resp.json();
+          const insertDoc = await window.pdfjsLib.getDocument(
+            `/uploads/${projectId}/_inserts/${tempId}.pdf`
+          ).promise;
+          setInsertDocs(prev => ({ ...prev, [tempId]: insertDoc }));
+          setInsertModal({
+            afterIdx,
+            tempId,
+            filename,
+            pageCount,
+            pdfJsDoc: insertDoc,
+            selectedPages: new Set(Array.from({ length: pageCount }, (_, i) => i + 1)),
+          });
+        } catch (err) { alert('Upload failed: ' + err.message); }
+      };
+
+      const confirmInsert = () => {
+        if (!insertModal) return;
+        const { afterIdx, tempId, selectedPages } = insertModal;
+        const newEntries = [...selectedPages].sort((a, b) => a - b)
+          .map(p => ({ type: 'insert', tempId, page: p }));
+        setPageOrder(prev => [
+          ...prev.slice(0, afterIdx + 1),
+          ...newEntries,
+          ...prev.slice(afterIdx + 1),
+        ]);
+        setSelectedIdx(afterIdx + 1);
+        setInsertModal(null);
+      };
+
+      const saveEdits = async () => {
+        setSaving(true);
+        try {
+          const resp = await fetch(`/api/projects/${projectId}/apply-edits`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pageOrder }),
+          });
+          const result = await resp.json();
+          if (!result.success) throw new Error(result.error || 'Save failed');
+          setHasOriginal(true);
+          setToast('PDF updated successfully!');
+          setTimeout(() => { setToast(null); onSaved?.(result.newPageCount); onClose(); }, 1500);
+        } catch (err) { alert('Save failed: ' + err.message); setSaving(false); }
+      };
+
+      const restoreOriginal = async () => {
+        if (!confirm('Restore the original AI-assembled PDF? All manual edits will be lost.')) return;
+        try {
+          const resp = await fetch(`/api/projects/${projectId}/restore-original`, { method: 'POST' });
+          if (!resp.ok) throw new Error('Restore failed');
+          const doc = await window.pdfjsLib.getDocument(`/api/projects/${projectId}/view`).promise;
+          const n = doc.numPages;
+          setPdfDoc(doc);
+          setOriginalCount(n);
+          setPageOrder(Array.from({ length: n }, (_, i) => ({ type: 'original', page: i + 1 })));
+          setThumbs({});
+          queuedKeys.current.clear();
+          renderQueue.current = [];
+          setSelectedIdx(0);
+          setToast('Original restored!');
+          setTimeout(() => setToast(null), 3000);
+        } catch (err) { alert('Restore failed: ' + err.message); }
+      };
+
+      const insertCount = pageOrder.filter(e => e.type === 'insert').length;
+      const deletedCount = pageOrder.filter(e => e.type === 'original').length < originalCount
+        ? originalCount - pageOrder.filter(e => e.type === 'original').length : 0;
+      const changeCount = insertCount + deletedCount;
+
+      // ── Loading / error states ─────────────────────────────────────────────
+      if (loading) return (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:9999}}>
+          <div style={{color:'white',fontSize:16,display:'flex',alignItems:'center',gap:12}}>
+            <div className="spinner" /> Loading PDF...
+          </div>
+        </div>
+      );
+
+      if (loadError) return (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:9999}}>
+          <div style={{background:'white',padding:32,borderRadius:12,maxWidth:400,textAlign:'center'}}>
+            <div style={{color:'#dc2626',fontSize:16,marginBottom:10}}>Failed to load PDF</div>
+            <div style={{fontSize:13,color:'#6b7280',marginBottom:16}}>{loadError}</div>
+            <button onClick={onClose} style={{padding:'8px 20px',background:'#374151',color:'white',border:'none',borderRadius:8,cursor:'pointer',fontSize:13}}>Close</button>
+          </div>
+        </div>
+      );
+
+      // ── Main panel ─────────────────────────────────────────────────────────
+      return (
+        <div style={{position:'fixed',inset:0,background:'#1a1a1a',display:'flex',flexDirection:'column',zIndex:9999,fontFamily:'system-ui,sans-serif'}}>
+          {/* Toolbar */}
+          <div style={{height:52,background:'#111',borderBottom:'1px solid #2a2a2a',display:'flex',alignItems:'center',padding:'0 16px',gap:10,flexShrink:0}}>
+            <span style={{color:'white',fontWeight:700,fontSize:15}}>Review &amp; Edit PDF</span>
+            <span style={{color:'#6b7280',fontSize:13}}>{pageOrder.length} pages</span>
+            {changeCount > 0 && (
+              <span style={{fontSize:11,background:'#92400e',color:'#fde68a',padding:'2px 8px',borderRadius:10,fontWeight:600}}>
+                {changeCount} change{changeCount !== 1 ? 's' : ''} pending
+              </span>
+            )}
+            <div style={{flex:1}} />
+            {hasOriginal && (
+              <button onClick={restoreOriginal}
+                style={{padding:'5px 12px',background:'transparent',color:'#9ca3af',border:'1px solid #374151',borderRadius:7,fontSize:12,cursor:'pointer'}}>
+                ↩ Restore Original
+              </button>
+            )}
+            <button
+              onClick={() => { if (changeCount > 0 && !confirm('Discard all changes and close?')) return; onClose(); }}
+              style={{padding:'5px 12px',background:'transparent',color:'#d1d5db',border:'1px solid #374151',borderRadius:7,fontSize:12,cursor:'pointer'}}>
+              Cancel
+            </button>
+            <button onClick={saveEdits} disabled={saving}
+              style={{padding:'6px 18px',background: saving ? '#374151' : '#0F4A2E',color:'white',border:'none',borderRadius:7,fontSize:13,fontWeight:600,cursor: saving ? 'default' : 'pointer'}}>
+              {saving ? 'Saving...' : 'Save PDF Changes'}
+            </button>
+          </div>
+
+          {/* Body */}
+          <div style={{flex:1,display:'flex',overflow:'hidden'}}>
+            {/* Thumbnail strip */}
+            <div style={{width:188,background:'#111',borderRight:'1px solid #2a2a2a',overflowY:'auto',flexShrink:0,padding:'6px 0'}}>
+              {pageOrder.map((entry, idx) => {
+                const key = entry.type === 'original' ? `orig:${entry.page}` : `ins:${entry.tempId}:${entry.page}`;
+                const isSelected = idx === selectedIdx;
+                const sectionLabel = entry.type === 'original' && sectionStartMap[entry.page]
+                  ? sectionStartMap[entry.page] : null;
+                return (
+                  <div key={`${key}-${idx}`}>
+                    {sectionLabel && (
+                      <div style={{fontSize:9,fontWeight:700,textTransform:'uppercase',color:'#6b7280',padding:'8px 8px 2px',letterSpacing:'0.06em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',borderTop:'1px solid #2a2a2a',marginTop:4}}>
+                        {sectionLabel.replace(/_/g,' ')}
+                      </div>
+                    )}
+                    <div
+                      onClick={() => setSelectedIdx(idx)}
+                      style={{padding:'4px 6px',cursor:'pointer',background: isSelected ? '#0a3320' : 'transparent',borderLeft: isSelected ? '3px solid #0F4A2E' : '3px solid transparent',margin:'1px 4px',borderRadius:4}}>
+                      <div style={{width:'100%',aspectRatio:'0.75',background:'#222',borderRadius:3,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:3}}>
+                        {thumbs[key]
+                          ? <img src={thumbs[key]} style={{width:'100%',height:'100%',objectFit:'contain'}} alt="" />
+                          : <span style={{color:'#444',fontSize:10}}>p.{entry.page}</span>}
+                      </div>
+                      <div style={{fontSize:10,color:'#6b7280',textAlign:'center',marginBottom:3}}>
+                        {entry.type === 'insert' ? <span style={{color:'#f59e0b'}}>+ </span> : ''}{idx + 1}
+                      </div>
+                      <div style={{display:'flex',gap:2,justifyContent:'center'}}>
+                        <button title="Move up" onClick={e => { e.stopPropagation(); movePage(idx, -1); }}
+                          style={{fontSize:9,padding:'1px 4px',background:'#2a2a2a',color:'#9ca3af',border:'none',borderRadius:3,cursor:'pointer'}}>↑</button>
+                        <button title="Move down" onClick={e => { e.stopPropagation(); movePage(idx, 1); }}
+                          style={{fontSize:9,padding:'1px 4px',background:'#2a2a2a',color:'#9ca3af',border:'none',borderRadius:3,cursor:'pointer'}}>↓</button>
+                        <button title="Delete page" onClick={e => { e.stopPropagation(); deletePage(idx); }}
+                          style={{fontSize:9,padding:'1px 4px',background:'#2a2a2a',color:'#ef4444',border:'none',borderRadius:3,cursor:'pointer'}}>×</button>
+                        <button title="Insert PDF after" onClick={e => { e.stopPropagation(); openInsertPicker(idx); }}
+                          style={{fontSize:9,padding:'1px 4px',background:'#2a2a2a',color:'#60a5fa',border:'none',borderRadius:3,cursor:'pointer'}}>+</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Page viewer */}
+            <div style={{flex:1,overflow:'auto',background:'#1e1e1e',display:'flex',flexDirection:'column',alignItems:'center',padding:24,gap:12}}>
+              <div style={{color:'#9ca3af',fontSize:13,textAlign:'center'}}>
+                Page {selectedIdx + 1} of {pageOrder.length}
+                {pageOrder[selectedIdx]?.type === 'insert' && <span style={{color:'#f59e0b',marginLeft:8}}>Inserted page</span>}
+              </div>
+              <div ref={viewerRef} style={{maxWidth:'100%',background:'white',boxShadow:'0 4px 32px rgba(0,0,0,0.6)',borderRadius:2}} />
+              <div style={{display:'flex',gap:10}}>
+                <button onClick={() => setSelectedIdx(i => Math.max(0, i - 1))} disabled={selectedIdx === 0}
+                  style={{padding:'6px 16px',background:'#2a2a2a',color: selectedIdx === 0 ? '#555' : '#d1d5db',border:'1px solid #374151',borderRadius:7,cursor: selectedIdx === 0 ? 'default' : 'pointer',fontSize:13}}>
+                  ← Prev
+                </button>
+                <button onClick={() => setSelectedIdx(i => Math.min(pageOrder.length - 1, i + 1))} disabled={selectedIdx >= pageOrder.length - 1}
+                  style={{padding:'6px 16px',background:'#2a2a2a',color: selectedIdx >= pageOrder.length - 1 ? '#555' : '#d1d5db',border:'1px solid #374151',borderRadius:7,cursor: selectedIdx >= pageOrder.length - 1 ? 'default' : 'pointer',fontSize:13}}>
+                  Next →
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Insert page selection modal */}
+          {insertModal && (
+            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:10000}}>
+              <div style={{background:'white',borderRadius:12,padding:24,maxWidth:560,width:'90%',maxHeight:'82vh',overflow:'auto',boxShadow:'0 8px 40px rgba(0,0,0,0.4)'}}>
+                <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Insert Pages</div>
+                <div style={{fontSize:13,color:'#6b7280',marginBottom:14}}>From: <strong>{insertModal.filename}</strong> ({insertModal.pageCount} pages)</div>
+                <div style={{display:'flex',gap:8,marginBottom:14}}>
+                  <button onClick={() => setInsertModal(m => ({...m, selectedPages: new Set(Array.from({length:m.pageCount},(_,i)=>i+1))}))}
+                    style={{fontSize:12,padding:'4px 10px',border:'1px solid #d1d5db',borderRadius:6,cursor:'pointer',background:'#f9fafb'}}>Select All</button>
+                  <button onClick={() => setInsertModal(m => ({...m, selectedPages: new Set()}))}
+                    style={{fontSize:12,padding:'4px 10px',border:'1px solid #d1d5db',borderRadius:6,cursor:'pointer',background:'#f9fafb'}}>Clear</button>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(88px,1fr))',gap:8,marginBottom:20}}>
+                  {Array.from({length:insertModal.pageCount},(_,i)=>i+1).map(p => {
+                    const key = `ins:${insertModal.tempId}:${p}`;
+                    const selected = insertModal.selectedPages.has(p);
+                    if (insertModal.pdfJsDoc) enqueueThumb(key, insertModal.pdfJsDoc, p);
+                    return (
+                      <div key={p} onClick={() => setInsertModal(m => {
+                        const sp = new Set(m.selectedPages);
+                        if (sp.has(p)) sp.delete(p); else sp.add(p);
+                        return {...m, selectedPages: sp};
+                      })} style={{cursor:'pointer',border:`2px solid ${selected ? '#0F4A2E' : '#e5e7eb'}`,borderRadius:8,overflow:'hidden',background: selected ? '#dcfce7' : 'white'}}>
+                        <div style={{aspectRatio:'0.75',background:'#f3f4f6',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                          {thumbs[key] ? <img src={thumbs[key]} style={{width:'100%',height:'100%',objectFit:'contain'}} alt="" /> : <span style={{color:'#9ca3af',fontSize:11}}>p.{p}</span>}
+                        </div>
+                        <div style={{fontSize:11,textAlign:'center',padding:'3px 0',color: selected ? '#166534' : '#6b7280',fontWeight: selected ? 600 : 400}}>p.{p}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+                  <button onClick={() => setInsertModal(null)}
+                    style={{padding:'8px 18px',border:'1px solid #d1d5db',borderRadius:8,fontSize:13,cursor:'pointer',background:'white'}}>Cancel</button>
+                  <button onClick={confirmInsert} disabled={insertModal.selectedPages.size === 0}
+                    style={{padding:'8px 18px',background: insertModal.selectedPages.size === 0 ? '#9ca3af' : '#0F4A2E',color:'white',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor: insertModal.selectedPages.size === 0 ? 'default' : 'pointer'}}>
+                    Insert {insertModal.selectedPages.size} Page{insertModal.selectedPages.size !== 1 ? 's' : ''}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Toast */}
+          {toast && (
+            <div style={{position:'fixed',bottom:24,right:24,background:'#0F4A2E',color:'white',padding:'10px 20px',borderRadius:10,fontSize:14,fontWeight:600,zIndex:10001,boxShadow:'0 4px 20px rgba(0,0,0,0.4)'}}>
+              {toast}
+            </div>
+          )}
+
+          {/* Hidden file input */}
+          <input type="file" accept=".pdf,application/pdf" ref={insertFileRef} style={{display:'none'}} onChange={handleInsertFile} />
+        </div>
+      );
+    }
+
+    function ResultArtifact({ data: d, projectId, onReset }) {
+      const [emailTo, setEmailTo] = useState('');
+      const [emailSending, setEmailSending] = useState(false);
+      const [emailResult, setEmailResult] = useState(null); // {success, message}
+      const [showReviewPanel, setShowReviewPanel] = useState(false);
+      const [currentPageCount, setCurrentPageCount] = useState(d.totalPages || 0);
+
+      const sendEmail = async () => {
+        const recipients = emailTo.split(/[,;\s]+/).filter(e => e.includes('@'));
+        if (recipients.length === 0) return;
+        setEmailSending(true);
+        setEmailResult(null);
+        try {
+          const response = await fetch('/api/projects/' + projectId + '/deliver', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to: recipients }),
+          });
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop() || '';
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              let evt;
+              try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+              if (evt.phase === 'delivered') {
+                setEmailResult({ success: true, message: 'Sent to ' + (evt.recipients || []).join(', ') + ' (' + evt.attachmentCount + ' attachment(s))' });
+              } else if (evt.phase === 'delivery_error' || evt.phase === 'error') {
+                setEmailResult({ success: false, message: evt.error || 'Delivery failed' });
+              }
+            }
+          }
+        } catch (err) {
+          setEmailResult({ success: false, message: err.message });
+        }
+        setEmailSending(false);
+      };
+
+      return (
+        <>
+        <Artifact icon="&#128218;" title="Report Complete" subtitle="Ready to download">
+          <div className="stat-grid" style={{marginBottom:14}}>
+            <div className="stat-card" style={{background:'#dcfce7'}}><div className="value" style={{color:'#166534'}}>{currentPageCount}</div><div className="label">Total Pages</div></div>
+            <div className="stat-card" style={{background:'#dbeafe'}}><div className="value" style={{color:'#1e40af'}}>{d.narrativePages||0}</div><div className="label">AI Pages</div></div>
+            <div className="stat-card" style={{background:'#f3e8ff'}}><div className="value" style={{color:'#6b21a8'}}>{d.compressedSizeMB || '?'}MB</div><div className="label">File Size</div></div>
+            <div className="stat-card" style={{background:'#fef9c3'}}><div className="value" style={{color:'#854d0e'}}>${(d.aiUsage?.totalCostUsd||0).toFixed(2)}</div><div className="label">AI Cost</div></div>
+          </div>
+          {d.qcResult && (
+            <div style={{padding:'8px 12px', marginBottom:12, borderRadius:8, fontSize:13,
+              background: d.qcResult.passed ? '#dcfce7' : '#fef9c3',
+              color: d.qcResult.passed ? '#166534' : '#854d0e'}}>
+              QC: {d.qcResult.passed ? 'Passed' : 'Needs Review'} ({d.qcResult.score}/100) — {d.qcResult.summary?.substring(0, 120)}
+            </div>
+          )}
+          {d.aiQcResult && (
+            <div style={{padding:'8px 12px', marginBottom:12, borderRadius:8, fontSize:13,
+              background: d.aiQcResult.passed ? '#dbeafe' : '#fef2f2',
+              color: d.aiQcResult.passed ? '#1e40af' : '#991b1b'}}>
+              AI Review: {d.aiQcResult.passed ? 'Passed' : 'Issues Found'}
+              {d.aiQcResult.findings?.length > 0 && ` (${d.aiQcResult.findings.filter(f => f.severity === 'error').length} errors, ${d.aiQcResult.findings.filter(f => f.severity === 'warning').length} warnings)`}
+              {' — '}{d.aiQcResult.summary?.substring(0, 120)}
+            </div>
+          )}
+          {d.downloadUrl && (
+            <button
+              onClick={() => setShowReviewPanel(true)}
+              style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,width:'100%',padding:'10px 16px',background:'white',border:'2px solid var(--accent)',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',color:'var(--accent)',marginBottom:8}}>
+              &#128196; Review &amp; Edit PDF
+            </button>
+          )}
+          <a href={d.downloadUrl} className="download-btn">&#11015; Download Full Report ({d.compressedSizeMB || '?'}MB)</a>
+          {d.splitParts && d.splitParts.length > 0 && (
+            <div style={{marginTop:10}}>
+              <div style={{fontSize:12, fontWeight:600, color:'var(--text-muted)', marginBottom:6}}>Split for email ({d.splitParts.length} parts):</div>
+              {d.splitParts.map((p, j) => (
+                <a key={j} href={p.downloadUrl} className="reset-btn" style={{textDecoration:'none', marginBottom:4, display:'flex'}}>
+                  &#11015; {p.label} ({p.sizeMB}MB, {p.pageCount} pages)
+                </a>
+              ))}
+            </div>
+          )}
+
+          {/* Email Delivery */}
+          <div style={{marginTop:16, padding:16, background:'#f9fafb', borderRadius:10, border:'1px solid var(--border)'}}>
+            <div style={{fontSize:13, fontWeight:600, marginBottom:8, display:'flex', alignItems:'center', gap:6}}>
+              <span style={{fontSize:16}}>&#9993;</span> Email Report to Client
+            </div>
+            <div style={{display:'flex', gap:8}}>
+              <input
+                type="text"
+                placeholder="client@example.com (comma-separated)"
+                value={emailTo}
+                onChange={e => setEmailTo(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !emailSending) sendEmail(); }}
+                style={{flex:1, padding:'8px 12px', border:'1px solid var(--border)', borderRadius:8, fontSize:13, outline:'none'}}
+              />
+              <button
+                onClick={sendEmail}
+                disabled={emailSending || !emailTo.includes('@')}
+                style={{padding:'8px 18px', background: emailSending ? '#9ca3af' : 'var(--accent)', color:'white', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: emailSending ? 'default' : 'pointer', whiteSpace:'nowrap'}}
+              >
+                {emailSending ? 'Sending...' : 'Send'}
+              </button>
+            </div>
+            {emailResult && (
+              <div style={{marginTop:8, padding:'6px 10px', borderRadius:6, fontSize:12,
+                background: emailResult.success ? '#dcfce7' : '#fee2e2',
+                color: emailResult.success ? '#166534' : '#991b1b'}}>
+                {emailResult.success ? '&#10003; ' : '&#10007; '}{emailResult.message}
+              </div>
+            )}
+            {d.deliveryResult && !emailResult && (
+              <div style={{marginTop:8, padding:'6px 10px', borderRadius:6, fontSize:12,
+                background: d.deliveryResult.success ? '#dcfce7' : '#fee2e2',
+                color: d.deliveryResult.success ? '#166534' : '#991b1b'}}>
+                Auto-delivered: {d.deliveryResult.success ? 'Sent to ' + (d.deliveryResult.recipients || []).join(', ') : d.deliveryResult.error}
+              </div>
+            )}
+          </div>
+
+          {/* Prepare for Client Delivery */}
+          <PrepareForClient projectId={d.projectId || window.__currentProjectId} />
+
+          <button className="reset-btn" onClick={onReset}>
+            &#43; Start New Report
+          </button>
+        </Artifact>
+
+        {showReviewPanel && (
+          <PDFReviewPanel
+            projectId={projectId}
+            onClose={() => setShowReviewPanel(false)}
+            onSaved={(newCount) => { setCurrentPageCount(newCount); setShowReviewPanel(false); }}
+          />
+        )}
+        </>
+      );
+    }
+
+    // Prepare for Client Delivery component
+    function PrepareForClient({ projectId }) {
+      const [quality, setQuality] = useState('ebook');
+      const [maxPartSize, setMaxPartSize] = useState(20);
+      const [preparing, setPreparing] = useState(false);
+      const [deliveryResult, setDeliveryResult] = useState(null);
+      const [progress, setProgress] = useState('');
+
+      const prepare = async () => {
+        if (!projectId) return;
+        setPreparing(true);
+        setDeliveryResult(null);
+        setProgress('Starting...');
+
+        try {
+          const resp = await fetch('/api/projects/' + projectId + '/prepare-delivery', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ maxPartSizeMB: maxPartSize, quality }),
+          });
+
+          const reader = resp.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              try {
+                const evt = JSON.parse(line.slice(6));
+                if (evt.phase === 'compressing') setProgress('Compressing...');
+                else if (evt.phase === 'compressed' && !evt.skipped) setProgress('Compressed ' + evt.outputSizeMB + 'MB (' + evt.reductionPercent + '% reduction)');
+                else if (evt.phase === 'splitting') setProgress('Splitting into parts...');
+                else if (evt.phase === 'split' && !evt.skipped) setProgress('Split into ' + evt.totalParts + ' parts');
+                else if (evt.phase === 'zipped') setProgress('ZIP ready');
+                else if (evt.phase === 'done') setDeliveryResult(evt);
+                else if (evt.phase === 'error') { setProgress('Error: ' + evt.error); setPreparing(false); return; }
+              } catch {}
+            }
+          }
+        } catch (err) {
+          setProgress('Error: ' + err.message);
+        }
+        setPreparing(false);
+      };
+
+      return (
+        <div style={{marginTop:16, padding:16, background:'#f9fafb', borderRadius:10, border:'1px solid var(--border)'}}>
+          <div style={{fontSize:13, fontWeight:600, marginBottom:10, display:'flex', alignItems:'center', gap:6}}>
+            <span style={{fontSize:16}}>&#128230;</span> Prepare for Client
+          </div>
+          <div style={{display:'flex', gap:8, marginBottom:10, flexWrap:'wrap'}}>
+            <div style={{flex:1, minWidth:120}}>
+              <label style={{fontSize:11, color:'var(--text-muted)', display:'block', marginBottom:3}}>Compression</label>
+              <select value={quality} onChange={e => setQuality(e.target.value)}
+                style={{width:'100%', padding:'6px 8px', border:'1px solid var(--border)', borderRadius:6, fontSize:12, background:'white'}}>
+                <option value="screen">Screen (smallest)</option>
+                <option value="ebook">eBook (recommended)</option>
+                <option value="printer">Printer (high quality)</option>
+                <option value="prepress">Prepress (max quality)</option>
+              </select>
+            </div>
+            <div style={{flex:1, minWidth:120}}>
+              <label style={{fontSize:11, color:'var(--text-muted)', display:'block', marginBottom:3}}>Max Part Size</label>
+              <select value={maxPartSize} onChange={e => setMaxPartSize(+e.target.value)}
+                style={{width:'100%', padding:'6px 8px', border:'1px solid var(--border)', borderRadius:6, fontSize:12, background:'white'}}>
+                <option value="10">10 MB</option>
+                <option value="15">15 MB</option>
+                <option value="20">20 MB</option>
+                <option value="25">25 MB</option>
+                <option value="50">50 MB</option>
+              </select>
+            </div>
+          </div>
+          <button onClick={prepare} disabled={preparing}
+            style={{width:'100%', padding:'8px 16px', background: preparing ? '#9ca3af' : '#1e40af', color:'white',
+              border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor: preparing ? 'default' : 'pointer'}}>
+            {preparing ? progress || 'Preparing...' : 'Prepare Delivery'}
+          </button>
+          {deliveryResult && (
+            <div style={{marginTop:10}}>
+              <div style={{fontSize:12, color:'var(--text-muted)', marginBottom:6}}>
+                {deliveryResult.originalSizeMB}MB &#8594; {deliveryResult.finalSizeMB}MB
+                {deliveryResult.files?.length > 1 ? ' (' + deliveryResult.files.length + ' parts)' : ''}
+              </div>
+              {deliveryResult.files?.map((f, i) => (
+                <a key={i} href={f.downloadUrl} className="reset-btn"
+                  style={{textDecoration:'none', marginBottom:4, display:'flex', fontSize:12}}>
+                  &#11015; {f.label} ({f.sizeMB}MB{f.pageCount ? ', ' + f.pageCount + ' pages' : ''})
+                </a>
+              ))}
+              {deliveryResult.zipUrl && (
+                <a href={deliveryResult.zipUrl} className="download-btn" style={{marginTop:6, display:'block', textAlign:'center', fontSize:12}}>
+                  &#11015; Download All as ZIP
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Site Visit Mode component
+    function SiteVisitPanel({ projectId, onObservation }) {
+      const [photos, setPhotos] = useState([]);
+      const [recording, setRecording] = useState(false);
+      const [transcribing, setTranscribing] = useState(false);
+      const [observations, setObservations] = useState([]);
+      const mediaRef = useRef(null);
+      const chunksRef = useRef([]);
+      const photoRef = useRef(null);
+
+      const takePhoto = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const fd = new FormData();
+        fd.append('photo', file);
+        try {
+          const r = await fetch('/api/projects/' + projectId + '/site-visit/photo', { method: 'POST', body: fd });
+          const data = await r.json();
+          if (data.ok) {
+            setPhotos(prev => [...prev, { filename: data.filename, url: '/uploads/' + projectId + '/_site_visit/photos/' + data.filename }]);
+          }
+        } catch (err) { console.error('Photo upload failed:', err); }
+      };
+
+      const startRecording = async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+          chunksRef.current = [];
+          mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+          mr.onstop = async () => {
+            stream.getTracks().forEach(t => t.stop());
+            const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+            setTranscribing(true);
+            try {
+              const r = await fetch('/api/projects/' + projectId + '/site-visit/voice', {
+                method: 'POST', headers: { 'Content-Type': 'audio/webm' }, body: blob,
+              });
+              const data = await r.json();
+              if (data.ok && data.observations) {
+                setObservations(prev => [...prev, ...data.observations]);
+                if (onObservation) data.observations.forEach(o => onObservation(o));
+              }
+            } catch (err) { console.error('Voice upload failed:', err); }
+            setTranscribing(false);
+          };
+          mediaRef.current = mr;
+          mr.start();
+          setRecording(true);
+        } catch (err) { alert('Microphone access denied'); }
+      };
+
+      const stopRecording = () => {
+        if (mediaRef.current && mediaRef.current.state === 'recording') {
+          mediaRef.current.stop();
+        }
+        setRecording(false);
+      };
+
+      return (
+        <Artifact icon="&#128205;" title="Live Site Visit" subtitle={`${photos.length} photos, ${observations.length} observations`}>
+          <div className="site-visit-bar">
+            <button className="sv-btn" onClick={() => photoRef.current?.click()}>
+              &#128247; Take Photo
+            </button>
+            <input ref={photoRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={takePhoto} />
+            {!recording ? (
+              <button className="sv-btn" onClick={startRecording} disabled={transcribing}>
+                {transcribing ? '&#9203; Transcribing...' : '&#127908; Voice Memo'}
+              </button>
+            ) : (
+              <button className="sv-btn active" onClick={stopRecording}>
+                &#9632; Stop Recording
+              </button>
+            )}
+            <div className="sv-status">
+              {recording && '&#128308; Recording...'}
+              {transcribing && '&#128300; AI transcribing...'}
+            </div>
+          </div>
+          {photos.length > 0 && (
+            <div className="photo-grid">
+              {photos.map((p, i) => <img key={i} src={p.url} alt={p.filename} />)}
+            </div>
+          )}
+          {observations.length > 0 && (
+            <div style={{marginTop:12}}>
+              <div style={{fontSize:12, fontWeight:600, color:'var(--text-muted)', marginBottom:4}}>Observations ({observations.length})</div>
+              {observations.map((o, i) => (
+                <div key={i} className={'obs-card' + (o.potentialConcern ? ' concern' : '')}>
+                  <span className="cat">{o.category}</span>
+                  <span>{o.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Artifact>
+      );
+    }
+
+    // ─── PDF Tools (Compress, Split, Convert) ───
+
+    function PDFDropZone({ accept, label, icon, file, onFile, fileRef }) {
+      return (
+        <div>
+          <div className={'upload-zone' + (file ? ' has-files' : '')}
+            onClick={() => fileRef.current?.click()}
+            onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('dragover'); }}
+            onDragLeave={e => e.currentTarget.classList.remove('dragover')}
+            onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f && f.name.toLowerCase().endsWith('.pdf')) onFile(f); }}
+          >
+            {file ? (
+              <div>
+                <div style={{fontSize:24, marginBottom:8}}>&#128196;</div>
+                <div style={{fontWeight:600, fontSize:15}}>{file.name}</div>
+                <div style={{color:'var(--text-muted)', fontSize:13, marginTop:4}}>{(file.size / 1024 / 1024).toFixed(1)} MB</div>
+              </div>
+            ) : (
+              <div>
+                <div style={{fontSize:40, marginBottom:12}}>{icon}</div>
+                <div style={{fontWeight:600, fontSize:16, marginBottom:6}}>{label}</div>
+                <div style={{color:'var(--text-muted)', fontSize:14}}>Drag and drop or click to browse</div>
+              </div>
+            )}
+          </div>
+          <input ref={fileRef} type="file" accept={accept} style={{display:'none'}} onChange={e => { if (e.target.files[0]) onFile(e.target.files[0]); }} />
+        </div>
+      );
+    }
+
+    function CompressTab() {
+      const [file, setFile] = useState(null);
+      const [maxSizeMB, setMaxSizeMB] = useState(25);
+      const [quality, setQuality] = useState('ebook');
+      const [working, setWorking] = useState(false);
+      const [result, setResult] = useState(null);
+      const [error, setError] = useState(null);
+      const fileRef = useRef(null);
+
+      const run = async () => {
+        if (!file) return;
+        setWorking(true); setResult(null); setError(null);
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          const r = await fetch(`/api/tools/compress?maxSizeMB=${maxSizeMB}&quality=${quality}`, { method: 'POST', body: fd });
+          if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Compression failed'); }
+          setResult(await r.json());
+        } catch (err) { setError(err.message); }
+        setWorking(false);
+      };
+
+      const reset = () => { setFile(null); setResult(null); setError(null); };
+
+      return (
+        <div>
+          {!result && (
+            <div>
+              <PDFDropZone accept=".pdf" label="Drop a PDF here to compress" icon="&#128451;" file={file} onFile={setFile} fileRef={fileRef} />
+              {file && (
+                <Artifact icon="&#9881;" title="Compression Settings">
+                  <div style={{marginBottom:14}}>
+                    <div style={{fontSize:12, fontWeight:600, color:'var(--text-muted)', marginBottom:6}}>TARGET MAX SIZE</div>
+                    <div style={{display:'flex', gap:8}}>
+                      {[10, 25, 50].map(sz => (
+                        <label key={sz} style={{display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border: maxSizeMB === sz ? '2px solid var(--accent)' : '1px solid var(--border)', background: maxSizeMB === sz ? 'var(--accent-light)' : 'white', cursor:'pointer', fontWeight:600, fontSize:14}}>
+                          <input type="radio" name="maxSize" checked={maxSizeMB === sz} onChange={() => setMaxSizeMB(sz)} style={{display:'none'}} />
+                          {sz} MB
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{marginBottom:14}}>
+                    <div style={{fontSize:12, fontWeight:600, color:'var(--text-muted)', marginBottom:6}}>QUALITY</div>
+                    <select value={quality} onChange={e => setQuality(e.target.value)} style={{padding:'8px 12px', borderRadius:8, border:'1px solid var(--border)', fontSize:14, background:'white'}}>
+                      <option value="ebook">eBook (recommended)</option>
+                      <option value="screen">Screen (smaller)</option>
+                      <option value="printer">Printer (higher quality)</option>
+                      <option value="prepress">Prepress (max quality)</option>
+                    </select>
+                  </div>
+                  <button className="download-btn" onClick={run} disabled={working} style={{background: working ? '#9ca3af' : 'var(--accent)'}}>
+                    {working ? (<span style={{display:'flex', alignItems:'center', gap:8}}><span className="spinner" style={{borderColor:'rgba(255,255,255,0.3)', borderTopColor:'white'}}></span>Compressing...</span>) : 'Compress PDF'}
+                  </button>
+                </Artifact>
+              )}
+            </div>
+          )}
+          {error && (<Artifact icon="&#10007;" title="Compression Failed"><div style={{color:'#dc2626', fontSize:14}}>{error}</div><button className="reset-btn" onClick={reset} style={{marginTop:10}}>Try Again</button></Artifact>)}
+          {result && (
+            <Artifact icon="&#10003;" title="Compression Complete" subtitle={`${result.reductionPercent}% smaller`}>
+              <div className="stat-grid" style={{marginBottom:14}}>
+                <div className="stat-card" style={{background:'#fee2e2'}}><div className="value" style={{color:'#991b1b'}}>{result.inputSizeMB}MB</div><div className="label">Original</div></div>
+                <div className="stat-card" style={{background:'#dcfce7'}}><div className="value" style={{color:'#166534'}}>{result.outputSizeMB}MB</div><div className="label">Compressed</div></div>
+                <div className="stat-card" style={{background:'#dbeafe'}}><div className="value" style={{color:'#1e40af'}}>{result.reductionPercent}%</div><div className="label">Reduction</div></div>
+              </div>
+              {result.splitParts && result.splitParts.length > 0 ? (
+                <div>
+                  <div style={{fontSize:12, fontWeight:600, color:'var(--text-muted)', marginBottom:8}}>Split into {result.splitParts.length} parts for email</div>
+                  {result.splitParts.map((p, j) => (
+                    <a key={j} href={p.downloadUrl} className="reset-btn" style={{textDecoration:'none', marginBottom:4, display:'flex'}}>&#11015; {p.filename} ({p.sizeMB} MB)</a>
+                  ))}
+                </div>
+              ) : (
+                <a href={result.downloadUrl} className="download-btn">&#11015; Download Compressed PDF ({result.outputSizeMB} MB)</a>
+              )}
+              <button className="reset-btn" onClick={reset}>Compress Another</button>
+            </Artifact>
+          )}
+        </div>
+      );
+    }
+
+    function SplitTab() {
+      const [file, setFile] = useState(null);
+      const [maxSizeMB, setMaxSizeMB] = useState(25);
+      const [working, setWorking] = useState(false);
+      const [result, setResult] = useState(null);
+      const [error, setError] = useState(null);
+      const fileRef = useRef(null);
+
+      const run = async () => {
+        if (!file) return;
+        setWorking(true); setResult(null); setError(null);
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          const r = await fetch(`/api/tools/split?maxSizeMB=${maxSizeMB}`, { method: 'POST', body: fd });
+          if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Split failed'); }
+          setResult(await r.json());
+        } catch (err) { setError(err.message); }
+        setWorking(false);
+      };
+
+      const reset = () => { setFile(null); setResult(null); setError(null); };
+
+      return (
+        <div>
+          {!result && (
+            <div>
+              <PDFDropZone accept=".pdf" label="Drop a PDF here to split" icon="&#9986;" file={file} onFile={setFile} fileRef={fileRef} />
+              {file && (
+                <Artifact icon="&#9881;" title="Split Settings">
+                  <div style={{marginBottom:14}}>
+                    <div style={{fontSize:12, fontWeight:600, color:'var(--text-muted)', marginBottom:6}}>MAX SIZE PER PART</div>
+                    <div style={{display:'flex', gap:8}}>
+                      {[10, 20, 25, 50].map(sz => (
+                        <label key={sz} style={{display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:8, border: maxSizeMB === sz ? '2px solid var(--accent)' : '1px solid var(--border)', background: maxSizeMB === sz ? 'var(--accent-light)' : 'white', cursor:'pointer', fontWeight:600, fontSize:14}}>
+                          <input type="radio" name="splitSize" checked={maxSizeMB === sz} onChange={() => setMaxSizeMB(sz)} style={{display:'none'}} />
+                          {sz} MB
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <button className="download-btn" onClick={run} disabled={working} style={{background: working ? '#9ca3af' : 'var(--accent)'}}>
+                    {working ? (<span style={{display:'flex', alignItems:'center', gap:8}}><span className="spinner" style={{borderColor:'rgba(255,255,255,0.3)', borderTopColor:'white'}}></span>Splitting...</span>) : 'Split PDF'}
+                  </button>
+                </Artifact>
+              )}
+            </div>
+          )}
+          {error && (<Artifact icon="&#10007;" title="Split Failed"><div style={{color:'#dc2626', fontSize:14}}>{error}</div><button className="reset-btn" onClick={reset} style={{marginTop:10}}>Try Again</button></Artifact>)}
+          {result && (
+            <Artifact icon="&#10003;" title={result.totalParts <= 1 ? 'No Split Needed' : `Split into ${result.totalParts} Parts`}>
+              <div style={{fontSize:14, color:'var(--text-muted)', marginBottom:12}}>{result.message}</div>
+              <div style={{fontSize:13, color:'var(--text-muted)', marginBottom:12}}>Original: {result.inputSizeMB} MB</div>
+              {result.parts.map((p, j) => (
+                <a key={j} href={p.downloadUrl} className="reset-btn" style={{textDecoration:'none', marginBottom:4, display:'flex', justifyContent:'space-between'}}>
+                  <span>&#11015; {p.filename}</span><span style={{color:'var(--text-muted)'}}>{p.sizeMB} MB</span>
+                </a>
+              ))}
+              <button className="reset-btn" onClick={reset} style={{marginTop:8}}>Split Another</button>
+            </Artifact>
+          )}
+        </div>
+      );
+    }
+
+    function ConvertTab() {
+      const [file, setFile] = useState(null);
+      const [working, setWorking] = useState(false);
+      const [result, setResult] = useState(null);
+      const [error, setError] = useState(null);
+      const fileRef = useRef(null);
+
+      const run = async () => {
+        if (!file) return;
+        setWorking(true); setResult(null); setError(null);
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          const r = await fetch('/api/tools/convert', { method: 'POST', body: fd });
+          if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Conversion failed'); }
+          setResult(await r.json());
+        } catch (err) { setError(err.message); }
+        setWorking(false);
+      };
+
+      const reset = () => { setFile(null); setResult(null); setError(null); };
+
+      return (
+        <div>
+          {!result && (
+            <div>
+              <PDFDropZone accept=".pdf" label="Drop a PDF to convert to Word" icon="&#128196;" file={file} onFile={setFile} fileRef={fileRef} />
+              {file && (
+                <Artifact icon="&#128196;" title="Ready to Convert">
+                  <div style={{fontSize:14, color:'var(--text-muted)', marginBottom:12}}>
+                    Converts <strong>{file.name}</strong> ({(file.size / 1024 / 1024).toFixed(1)} MB) to a .docx Word document using LibreOffice.
+                  </div>
+                  <button className="download-btn" onClick={run} disabled={working} style={{background: working ? '#9ca3af' : 'var(--accent)'}}>
+                    {working ? (<span style={{display:'flex', alignItems:'center', gap:8}}><span className="spinner" style={{borderColor:'rgba(255,255,255,0.3)', borderTopColor:'white'}}></span>Converting...</span>) : 'Convert to Word'}
+                  </button>
+                </Artifact>
+              )}
+            </div>
+          )}
+          {error && (<Artifact icon="&#10007;" title="Conversion Failed"><div style={{color:'#dc2626', fontSize:14}}>{error}</div><button className="reset-btn" onClick={reset} style={{marginTop:10}}>Try Again</button></Artifact>)}
+          {result && (
+            <Artifact icon="&#10003;" title="Conversion Complete">
+              <div className="stat-grid" style={{marginBottom:14}}>
+                <div className="stat-card" style={{background:'#fee2e2'}}><div className="value" style={{color:'#991b1b'}}>{result.inputSizeMB}MB</div><div className="label">PDF</div></div>
+                <div className="stat-card" style={{background:'#dbeafe'}}><div className="value" style={{color:'#1e40af'}}>{result.outputSizeMB}MB</div><div className="label">Word</div></div>
+              </div>
+              <a href={result.downloadUrl} className="download-btn">&#11015; Download {result.outputFilename}</a>
+              <button className="reset-btn" onClick={reset} style={{marginTop:8}}>Convert Another</button>
+            </Artifact>
+          )}
+        </div>
+      );
+    }
+
+    function PDFToolsView() {
+      const [tab, setTab] = useState('compress');
+      const tabs = [
+        { id: 'compress', label: 'Compress', icon: '&#128451;' },
+        { id: 'split', label: 'Split', icon: '&#9986;' },
+        { id: 'convert', label: 'PDF to Word', icon: '&#128196;' },
+      ];
+
+      return (
+        <div>
+          <div style={{textAlign:'center', padding:'30px 0 10px'}}>
+            <h2 style={{fontSize:22, fontWeight:700, marginBottom:6}}>PDF Tools</h2>
+            <p style={{color:'var(--text-muted)', fontSize:14}}>Compress, split, and convert PDFs — no internet needed, no size limits.</p>
+          </div>
+          <div style={{display:'flex', gap:4, justifyContent:'center', marginBottom:20, padding:'4px', background:'var(--bg-secondary)', borderRadius:10}}>
+            {tabs.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                style={{padding:'8px 20px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:600, fontSize:14,
+                  background: tab === t.id ? 'white' : 'transparent',
+                  color: tab === t.id ? 'var(--accent)' : 'var(--text-muted)',
+                  boxShadow: tab === t.id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                }}>
+                <span dangerouslySetInnerHTML={{__html: t.icon}} /> {t.label}
+              </button>
+            ))}
+          </div>
+          {tab === 'compress' && <CompressTab />}
+          {tab === 'split' && <SplitTab />}
+          {tab === 'convert' && <ConvertTab />}
+        </div>
+      );
+    }
+
+    // ─── Pre-Assembly Check + Records Triage (Gap 9 + 5) ───
+    function PreCheckCard({ projectId, onComplete }) {
+      const [loading, setLoading] = useState(false);
+      const [result, setResult] = useState(null);
+      const [error, setError] = useState(null);
+
+      const runCheck = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const r = await fetch(`/api/projects/${projectId}/pre-check`, { method: 'POST' });
+          if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Pre-check failed'); }
+          const data = await r.json();
+          setResult(data);
+          if (onComplete) onComplete(data);
+        } catch (err) {
+          setError(err.message);
+        }
+        setLoading(false);
+      };
+
+      if (!result) {
+        return (
+          <div>
+            <button className="precheck-btn" onClick={runCheck} disabled={loading}>
+              {loading ? (
+                <span style={{display:'flex', alignItems:'center', gap:8}}>
+                  <span className="spinner" style={{borderColor:'rgba(255,255,255,0.3)', borderTopColor:'white'}}></span>
+                  Running pre-assembly checks...
+                </span>
+              ) : (
+                <span>&#9745; Run Pre-Assembly Check</span>
+              )}
+            </button>
+            {error && <div style={{color:'#dc2626', fontSize:13, marginTop:4}}>{error}</div>}
+          </div>
+        );
+      }
+
+      const statusIcon = (s) => s === 'pass' ? '\u2713' : s === 'warn' ? '\u26A0' : '\u2717';
+      const statusColor = (s) => s === 'pass' ? '#16a34a' : s === 'warn' ? '#d97706' : '#dc2626';
+      const recBadge = (r) => r === 'include' ? 'badge-green' : r === 'link' ? 'badge-blue' : 'badge-gray';
+
+      return (
+        <div>
+          <Artifact icon={result.passed ? '\u2713' : '\u26A0'} title="Pre-Assembly Check" subtitle={`Score: ${result.score}/100 \u2014 ${result.passed ? 'Ready' : 'Needs Review'}`}>
+            <div style={{fontSize:13, marginBottom:12, lineHeight:1.6}}>{result.summary}</div>
+            {(result.checks || []).map((c, j) => (
+              <div key={j} style={{padding:'4px 0', display:'flex', gap:8, fontSize:13}}>
+                <span style={{color: statusColor(c.status), fontWeight:700}}>{statusIcon(c.status)}</span>
+                <span><strong>{c.label}:</strong> {c.detail}</span>
+              </div>
+            ))}
+          </Artifact>
+
+          {result.recordsTriage && result.recordsTriage.length > 0 && (
+            <Artifact icon="&#128218;" title="Records Summary" subtitle={`${result.recordsTriage.length} record files`}>
+              <table className="result-table">
+                <thead><tr><th>File</th><th>Size</th><th>In Writeup</th><th>Recommendation</th></tr></thead>
+                <tbody>
+                  {result.recordsTriage.map((r, j) => (
+                    <tr key={j}>
+                      <td style={{maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={r.filename}>{r.filename}</td>
+                      <td>{r.sizeMB} MB</td>
+                      <td>{r.mentionedInWriteup ? <span className="badge badge-green">Yes</span> : <span className="badge badge-gray">No</span>}</td>
+                      <td><span className={'badge ' + recBadge(r.recommendation)}>{r.recommendation}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{marginTop:10, padding:'8px 12px', background:'#f9fafb', borderRadius:8, fontSize:12, color:'var(--text-muted)'}}>
+                Total: {result.recordsTriage.length} files, {result.recordsTriage.reduce((s, r) => s + (r.sizeMB || 0), 0).toFixed(1)} MB
+                {' | '}Essential: {result.recordsTriage.filter(r => r.recommendation === 'include').length} files, {result.recordsTriage.filter(r => r.recommendation === 'include').reduce((s, r) => s + (r.sizeMB || 0), 0).toFixed(1)} MB
+              </div>
+            </Artifact>
+          )}
+        </div>
+      );
+    }
+
+    // ─── Classification Table (read-only — AI handles placement automatically) ───
+    // Document type → section mapping for the review dropdown
+    const DOC_TYPE_OPTIONS = [
+      { type: 'cover_page', section: 'front_cover', label: 'Cover Page' },
+      { type: 'reliance_letter', section: 'front_reliance', label: 'Reliance Letter (SBA)' },
+      { type: 'insurance_certificate', section: 'front_insurance', label: 'Insurance Certificate' },
+      { type: 'report_body', section: 'body_introduction', label: 'Report Body' },
+      { type: 'location_map', section: 'appendix_a_maps', label: 'Location Map' },
+      { type: 'plot_plan', section: 'appendix_a_maps', label: 'Plot Plan' },
+      { type: 'site_photograph', section: 'appendix_b_photographs', label: 'Site Photographs' },
+      { type: 'edr_report', section: 'appendix_c_database_report', label: 'EDR Radius Map Report' },
+      { type: 'sanborn_map', section: 'appendix_d_historical', label: 'Sanborn Maps' },
+      { type: 'aerial_photograph', section: 'appendix_d_historical', label: 'Aerial Photographs' },
+      { type: 'topographic_map', section: 'appendix_d_historical', label: 'Topographic Maps' },
+      { type: 'city_directory', section: 'appendix_d_historical', label: 'City Directory' },
+      { type: 'agency_records', section: 'appendix_e_agency_records', label: 'Agency Records' },
+      { type: 'regulatory_correspondence', section: 'appendix_e_agency_records', label: 'Regulatory Correspondence' },
+      { type: 'title_record', section: 'appendix_e_agency_records', label: 'Title/Property Records' },
+      { type: 'building_permit', section: 'appendix_e_agency_records', label: 'Building Permits' },
+      { type: 'ep_qualifications', section: 'appendix_f_qualifications', label: 'EP Qualifications' },
+      { type: 'prior_environmental_report', section: 'appendix_i_additional', label: 'Prior Environmental Report' },
+      { type: 'other_unknown', section: 'appendix_i_additional', label: 'Other/Unknown' },
+    ];
+
+    function ClassificationArtifact({ block, projectId }) {
+      const sc = block.data.scorecard;
+      const files = block.data.files || [];
+
+      return (
+        <Artifact icon="&#128202;" title="Classification Complete" subtitle={`${sc?.totalFiles || 0} documents placed`}>
+          <div className="stat-grid" style={{marginBottom:14}}>
+            <div className="stat-card" style={{background:'#dcfce7'}}><div className="value" style={{color:'#166534'}}>{sc?.highConfidence||0}</div><div className="label">High Conf.</div></div>
+            <div className="stat-card" style={{background:'#fef9c3'}}><div className="value" style={{color:'#854d0e'}}>{sc?.mediumConfidence||0}</div><div className="label">Medium</div></div>
+            <div className="stat-card" style={{background:'#fee2e2'}}><div className="value" style={{color:'#991b1b'}}>{sc?.lowConfidence||0}</div><div className="label">Low</div></div>
+            <div className="stat-card" style={{background:'#f3f4f6'}}><div className="value">{Math.round((sc?.averageConfidence||0)*100)}%</div><div className="label">Avg Conf.</div></div>
+          </div>
+          <table className="result-table">
+            <thead><tr><th>Document</th><th>Placed In</th><th>Confidence</th></tr></thead>
+            <tbody>
+              {files.map((f,j) => (
+                <tr key={j}>
+                  <td style={{maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={f.filename}>{f.filename}</td>
+                  <td><span className="badge badge-blue">{(f.section || f.label || f.documentType || '').replace(/_/g, ' ')}</span></td>
+                  <td><span className={'badge '+(f.confidence>=0.9?'badge-green':f.confidence>=0.7?'badge-yellow':'badge-red')}>{Math.round(f.confidence*100)}%</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {block.data.aiUsage && block.data.aiUsage.totalCostUsd > 0 && (
+            <div style={{marginTop:10,fontSize:12,color:'var(--text-muted)'}}>
+              Classification cost: ${block.data.aiUsage.totalCostUsd.toFixed(4)}
+            </div>
+          )}
+        </Artifact>
+      );
+    }
+
+    function ClassificationReviewArtifact({ block, projectId, onApprove }) {
+      const sc = block.data.scorecard;
+      const initialFiles = (block.data.files || []).map(f => ({ ...f }));
+      const [reviewFiles, setReviewFiles] = useState(initialFiles);
+      const [approving, setApproving] = useState(false);
+      const [selectAllReview, setSelectAllReview] = useState(false);
+
+      // Preview mode state
+      const [previewMode, setPreviewMode] = useState(false);
+      const [previewIdx, setPreviewIdx] = useState(0);
+      const [previewPdf, setPreviewPdf] = useState(null);
+      const [previewLoading, setPreviewLoading] = useState(false);
+      const previewCanvasRef = React.useRef(null);
+      const previewRenderTask = React.useRef(null);
+
+      // Load PDF when navigating in preview mode
+      React.useEffect(() => {
+        if (!previewMode || !window.pdfjsLib) return;
+        const file = reviewFiles[previewIdx];
+        if (!file) return;
+        const ext = file.filename.split('.').pop().toLowerCase();
+        setPreviewPdf(null);
+        if (ext !== 'pdf') { setPreviewLoading(false); return; }
+        setPreviewLoading(true);
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        window.pdfjsLib.getDocument(`/uploads/${projectId}/${encodeURIComponent(file.filename)}`).promise
+          .then(doc => { setPreviewPdf(doc); setPreviewLoading(false); })
+          .catch(() => setPreviewLoading(false));
+      }, [previewIdx, previewMode, projectId]);
+
+      // Render first page of loaded PDF
+      React.useEffect(() => {
+        if (!previewPdf || !previewCanvasRef.current) return;
+        let cancelled = false;
+        (async () => {
+          try {
+            const page = await previewPdf.getPage(1);
+            if (cancelled) return;
+            const canvas = previewCanvasRef.current;
+            if (!canvas) return;
+            const vp0 = page.getViewport({ scale: 1 });
+            const scale = Math.min(1.8, (canvas.parentElement?.clientWidth || 380) / vp0.width);
+            const vp = page.getViewport({ scale });
+            canvas.width = vp.width;
+            canvas.height = vp.height;
+            canvas.style.width = '100%';
+            previewRenderTask.current = page.render({ canvasContext: canvas.getContext('2d'), viewport: vp });
+            await previewRenderTask.current.promise;
+          } catch (e) { if (e?.name !== 'RenderingCancelledException') console.error(e); }
+        })();
+        return () => { cancelled = true; try { previewRenderTask.current?.cancel(); } catch {} };
+      }, [previewPdf]);
+
+      const acceptCurrent = () => {
+        setReviewFiles(prev => {
+          const next = [...prev];
+          next[previewIdx] = { ...next[previewIdx], needsReview: false, confidence: Math.max(next[previewIdx].confidence, 0.9) };
+          return next;
+        });
+        if (previewIdx < reviewFiles.length - 1) setPreviewIdx(i => i + 1);
+      };
+
+      const flagCurrent = () => {
+        setReviewFiles(prev => {
+          const next = [...prev];
+          next[previewIdx] = { ...next[previewIdx], needsReview: true };
+          return next;
+        });
+        if (previewIdx < reviewFiles.length - 1) setPreviewIdx(i => i + 1);
+      };
+
+      const needsReviewCount = reviewFiles.filter(f => f.needsReview || f.confidence < 0.8).length;
+
+      const updateFile = (idx, docType) => {
+        const opt = DOC_TYPE_OPTIONS.find(o => o.type === docType);
+        if (!opt) return;
+        setReviewFiles(prev => {
+          const next = [...prev];
+          next[idx] = { ...next[idx], documentType: docType, section: opt.section, label: opt.label, confidence: 1.0, needsReview: false, method: 'manual' };
+          return next;
+        });
+      };
+
+      const markBulkOtherUnknown = () => {
+        setReviewFiles(prev => prev.map(f => {
+          if (f.needsReview || f.confidence < 0.8) {
+            return { ...f, documentType: 'other_unknown', section: 'appendix_i_additional', label: 'Other/Unknown', confidence: 1.0, needsReview: false, method: 'manual' };
+          }
+          return f;
+        }));
+      };
+
+      const handleApprove = async () => {
+        setApproving(true);
+        // Only send files that were changed from the original
+        const changed = reviewFiles.filter((f, i) => f.documentType !== initialFiles[i]?.documentType || f.section !== initialFiles[i]?.section);
+        onApprove(changed);
+      };
+
+      const curFile = reviewFiles[previewIdx] || {};
+      const curFlagged = curFile.needsReview || curFile.confidence < 0.8;
+      const curExt = (curFile.filename || '').split('.').pop().toLowerCase();
+      const acceptedCount = reviewFiles.filter(f => !f.needsReview && f.confidence >= 0.8).length;
+
+      return (
+        <Artifact icon="&#128270;" title="Review Classifications" subtitle={`${needsReviewCount} file(s) need review`}>
+          <div className="stat-grid" style={{marginBottom:14}}>
+            <div className="stat-card" style={{background:'#dcfce7'}}><div className="value" style={{color:'#166534'}}>{sc?.highConfidence||0}</div><div className="label">High Conf.</div></div>
+            <div className="stat-card" style={{background:'#fef9c3'}}><div className="value" style={{color:'#854d0e'}}>{sc?.mediumConfidence||0}</div><div className="label">Medium</div></div>
+            <div className="stat-card" style={{background:'#fee2e2'}}><div className="value" style={{color:'#991b1b'}}>{sc?.lowConfidence||0}</div><div className="label">Low / Review</div></div>
+            <div className="stat-card" style={{background:'#f3f4f6'}}><div className="value">{reviewFiles.length}</div><div className="label">Total Files</div></div>
+          </div>
+
+          {/* View mode toggle */}
+          <div style={{display:'flex', gap:6, marginBottom:12, alignItems:'center'}}>
+            <button onClick={() => setPreviewMode(false)}
+              style={{padding:'5px 12px', fontSize:12, borderRadius:6, border:'1px solid var(--border)',
+                background: previewMode ? 'transparent' : 'var(--accent)', color: previewMode ? 'var(--text-muted)' : 'white', cursor:'pointer'}}>
+              ☰ Table
+            </button>
+            <button onClick={() => { setPreviewMode(true); setPreviewIdx(0); }}
+              style={{padding:'5px 12px', fontSize:12, borderRadius:6, border:'1px solid var(--border)',
+                background: previewMode ? 'var(--accent)' : 'transparent', color: previewMode ? 'white' : 'var(--text-muted)', cursor:'pointer'}}>
+              ▣ Preview
+            </button>
+            {!previewMode && needsReviewCount > 0 && (
+              <button className="action-btn" onClick={markBulkOtherUnknown} style={{background:'#fef9c3', borderColor:'#fbbf24', marginLeft:4}}>
+                Mark all flagged as Other/Unknown
+              </button>
+            )}
+          </div>
+
+          {previewMode ? (
+            /* ── Preview mode ── */
+            <div style={{border:'1px solid var(--border)', borderRadius:8, overflow:'hidden'}}>
+              {/* File info header */}
+              <div style={{padding:'10px 14px', background:'var(--bg-secondary)', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:8}}>
+                <span style={{fontSize:12, color:'var(--text-muted)', minWidth:60}}>{previewIdx + 1} / {reviewFiles.length}</span>
+                <span style={{fontSize:13, fontWeight:600, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={curFile.filename}>
+                  {curFile.filename}
+                </span>
+                {curFlagged
+                  ? <span style={{fontSize:11, background:'#fef3c7', color:'#92400e', padding:'2px 7px', borderRadius:10, fontWeight:600}}>⚠ Needs review</span>
+                  : <span style={{fontSize:11, background:'#dcfce7', color:'#166534', padding:'2px 7px', borderRadius:10, fontWeight:600}}>✓ OK</span>
+                }
+              </div>
+
+              {/* Two-column body: PDF left, controls right */}
+              <div style={{display:'flex', gap:0, minHeight:380}}>
+                {/* PDF preview */}
+                <div style={{flex:'0 0 55%', borderRight:'1px solid var(--border)', background:'#f8f8f8', display:'flex', alignItems:'center', justifyContent:'center', padding:8, minHeight:340}}>
+                  {previewLoading && <div style={{color:'var(--text-muted)', fontSize:13}}>Loading preview...</div>}
+                  {!previewLoading && curExt !== 'pdf' && (
+                    <div style={{textAlign:'center', color:'var(--text-muted)', fontSize:13}}>
+                      <div style={{fontSize:32, marginBottom:8}}>📄</div>
+                      <div>{curExt.toUpperCase()} file</div>
+                      <div style={{fontSize:11, marginTop:4}}>Preview not available</div>
+                    </div>
+                  )}
+                  {!previewLoading && curExt === 'pdf' && !previewPdf && (
+                    <div style={{color:'var(--text-muted)', fontSize:13}}>Failed to load PDF</div>
+                  )}
+                  <canvas ref={previewCanvasRef} style={{display: previewPdf ? 'block' : 'none', maxWidth:'100%', boxShadow:'0 2px 8px rgba(0,0,0,0.15)'}} />
+                </div>
+
+                {/* Controls panel */}
+                <div style={{flex:1, padding:14, display:'flex', flexDirection:'column', gap:10}}>
+                  <div>
+                    <div style={{fontSize:11, color:'var(--text-muted)', marginBottom:4, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em'}}>Classification</div>
+                    <select
+                      className="section-select"
+                      value={curFile.documentType || ''}
+                      onChange={e => updateFile(previewIdx, e.target.value)}
+                      style={{width:'100%', ...(curFlagged ? {borderColor:'#f59e0b', background:'#fffbeb'} : {})}}
+                    >
+                      {DOC_TYPE_OPTIONS.map(opt => (
+                        <option key={opt.type} value={opt.type}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{fontSize:12}}>
+                    <span style={{color:'var(--text-muted)'}}>Confidence: </span>
+                    <span className={'badge '+(curFile.confidence>=0.9?'badge-green':curFile.confidence>=0.7?'badge-yellow':'badge-red')}>
+                      {Math.round((curFile.confidence||0)*100)}%
+                    </span>
+                  </div>
+                  {curFile.reasoning && (
+                    <div style={{fontSize:11, color:'var(--text-muted)', background:'var(--bg-secondary)', padding:'8px 10px', borderRadius:6, lineHeight:1.5, maxHeight:100, overflowY:'auto'}}>
+                      {curFile.reasoning}
+                    </div>
+                  )}
+                  {curFile.pageCount > 0 && (
+                    <div style={{fontSize:12, color:'var(--text-muted)'}}>{curFile.pageCount} page{curFile.pageCount !== 1 ? 's' : ''}</div>
+                  )}
+                  <div style={{flex:1}} />
+                  <div style={{fontSize:12, color:'var(--text-muted)', borderTop:'1px solid var(--border)', paddingTop:10}}>
+                    {acceptedCount} of {reviewFiles.length} accepted · {needsReviewCount} flagged
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation bar: ← [✓] [✗] → */}
+              <div style={{borderTop:'1px solid var(--border)', padding:'10px 14px', display:'flex', alignItems:'center', justifyContent:'center', gap:8, background:'var(--bg-secondary)'}}>
+                <button
+                  onClick={() => setPreviewIdx(i => Math.max(0, i - 1))}
+                  disabled={previewIdx === 0}
+                  style={{padding:'7px 14px', borderRadius:7, border:'1px solid var(--border)', background:'transparent', cursor: previewIdx === 0 ? 'not-allowed' : 'pointer', opacity: previewIdx === 0 ? 0.4 : 1, fontSize:14}}>
+                  ← Prev
+                </button>
+                <button
+                  onClick={acceptCurrent}
+                  title="Accept classification"
+                  style={{width:38, height:38, borderRadius:8, border:'2px solid #16a34a', background:'#dcfce7', color:'#16a34a', fontSize:20, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700}}>
+                  ✓
+                </button>
+                <button
+                  onClick={flagCurrent}
+                  title="Flag for review"
+                  style={{width:38, height:38, borderRadius:8, border:'2px solid #dc2626', background:'#fee2e2', color:'#dc2626', fontSize:20, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700}}>
+                  ✕
+                </button>
+                <button
+                  onClick={() => setPreviewIdx(i => Math.min(reviewFiles.length - 1, i + 1))}
+                  disabled={previewIdx === reviewFiles.length - 1}
+                  style={{padding:'7px 14px', borderRadius:7, border:'1px solid var(--border)', background:'transparent', cursor: previewIdx === reviewFiles.length - 1 ? 'not-allowed' : 'pointer', opacity: previewIdx === reviewFiles.length - 1 ? 0.4 : 1, fontSize:14}}>
+                  Next →
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* ── Table mode ── */
+            <div style={{maxHeight:500, overflowY:'auto', border:'1px solid var(--border)', borderRadius:8}}>
+              <table className="result-table">
+                <thead><tr><th>Document</th><th>Classification</th><th>Conf.</th><th>Method</th><th style={{width:30}}>!</th></tr></thead>
+                <tbody>
+                  {reviewFiles.map((f,j) => {
+                    const flagged = f.needsReview || f.confidence < 0.8;
+                    return (
+                      <tr key={j} style={flagged ? {background:'#fefce8'} : undefined}
+                        onClick={() => { setPreviewIdx(j); setPreviewMode(true); }}
+                        className="clickable-row">
+                        <td style={{maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:12}} title={f.filename}>
+                          {f.filename}
+                          {f.pageCount > 0 && <span style={{color:'var(--text-muted)', marginLeft:4}}>({f.pageCount}p)</span>}
+                        </td>
+                        <td>
+                          <select
+                            className="section-select"
+                            value={f.documentType}
+                            onChange={e => { e.stopPropagation(); updateFile(j, e.target.value); }}
+                            onClick={e => e.stopPropagation()}
+                            style={flagged ? {borderColor:'#f59e0b', background:'#fffbeb'} : undefined}
+                          >
+                            {DOC_TYPE_OPTIONS.map(opt => (
+                              <option key={opt.type} value={opt.type}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <span className={'badge '+(f.confidence>=0.9?'badge-green':f.confidence>=0.7?'badge-yellow':'badge-red')}>
+                            {Math.round(f.confidence*100)}%
+                          </span>
+                        </td>
+                        <td style={{fontSize:11, color:'var(--text-muted)'}}>{f.method || f.classifiedBy}</td>
+                        <td>{flagged && <span style={{color:'#f59e0b', fontWeight:700}} title="Needs review">&#9888;</span>}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <button
+            className="download-btn"
+            style={{marginTop:14}}
+            onClick={handleApprove}
+            disabled={approving}
+          >
+            {approving ? 'Continuing...' : `Approve & Continue to Assembly (${reviewFiles.length} files)`}
+          </button>
+
+          {block.data.aiUsage && block.data.aiUsage.totalCostUsd > 0 && (
+            <div style={{marginTop:8,fontSize:12,color:'var(--text-muted)'}}>
+              Classification cost: ${block.data.aiUsage.totalCostUsd.toFixed(4)}
+            </div>
+          )}
+        </Artifact>
+      );
+    }
+
+    function App() {
+      const [health, setHealth] = useState(null);
+      const [phase, setPhase] = useState('idle'); // idle, running, done, error
+      const [blocks, setBlocks] = useState([]); // array of {type, ...} for rendering
+      const [projectId, setPid] = useState(null);
+      const [files, setFiles] = useState([]);
+      const [researchAddr, setResearchAddr] = useState('');
+      const [researching, setResearching] = useState(false);
+      const [siteVisitActive, setSiteVisitActive] = useState(false);
+      const [sidebarOpen, setSidebarOpen] = useState(false);
+      const [currentView, setCurrentView] = useState('report'); // 'report' | 'compress'
+      const fileRef = useRef(null);
+      const chatRef = useRef(null);
+
+      useEffect(() => { fetch('/api/health').then(r=>r.json()).then(setHealth).catch(()=>{}); }, []);
+      useEffect(() => { if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight; }, [blocks]);
+
+      const addBlock = useCallback((block) => setBlocks(prev => [...prev, block]), []);
+      const updateLastThinking = useCallback((updater) => {
+        setBlocks(prev => {
+          const next = [...prev];
+          for (let i = next.length - 1; i >= 0; i--) {
+            if (next[i].type === 'thinking') {
+              next[i] = updater(next[i]);
+              break;
+            }
+          }
+          return next;
+        });
+      }, []);
+
+      const runAddressReport = async () => {
+        if (!researchAddr.trim() || researchAddr.trim().length < 5) return;
+        setResearching(true);
+        setPhase('running');
+        setBlocks([]);
+        addBlock({ type: 'msg', text: `Generating full report for: ${researchAddr}` });
+        addBlock({ type: 'thinking', title: 'Address Research — Public Records', steps: [{ text: 'Geocoding address...', status: 'active' }], active: true });
+
+        try {
+          const response = await fetch('/api/address-report', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address: researchAddr.trim() }),
+          });
+
+          if (!response.ok || !response.headers.get('content-type')?.includes('text/event-stream')) {
+            updateLastThinking(b => ({ ...b, active: false }));
+            setBlocks(prev => [...prev, { type: 'msg', text: 'Address report not available — restart the server to enable this feature.' }]);
+            setPhase('error');
+            setResearching(false);
+            return;
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+          let researchSteps = [{ text: 'Geocoding address...', status: 'active' }];
+          let currentPhase = 'research';
+          let writingSteps = [];
+          let assemblySteps = [];
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop() || '';
+
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              let evt;
+              try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+              // Research phase events
+              if (evt.phase === 'research_geocoded') {
+                researchSteps[0] = { text: `Geocoded: ${evt.geocode?.formattedAddress || researchAddr}`, status: 'done' };
+                researchSteps.push({ text: 'Querying public databases...', status: 'active' });
+                updateLastThinking(b => ({ ...b, steps: researchSteps.map(s => ({...s})) }));
+              }
+
+              if (evt.phase === 'research_source_done') {
+                const icon = evt.status === 'success' ? '✓' : evt.status === 'skipped' ? '—' : '✗';
+                researchSteps.push({ text: `${icon} ${evt.source}${evt.error ? ': ' + evt.error : ''}`, status: 'done' });
+                updateLastThinking(b => ({ ...b, steps: researchSteps.map(s => ({...s})) }));
+              }
+
+              if (evt.phase === 'research_complete') {
+                updateLastThinking(b => ({ ...b, active: false }));
+                setBlocks(prev => [...prev, { type: 'research', data: evt }]);
+              }
+
+              // Cover generation
+              if (evt.phase === 'cover_generated' || evt.phase === 'generating_cover') {
+                // Just a brief step — no separate thinking block needed
+              }
+
+              // Front matter generation
+              if (evt.phase === 'generating_frontmatter' && currentPhase !== 'frontmatter') {
+                currentPhase = 'frontmatter';
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'Generating Front Matter', steps: [{ text: 'Creating front matter documents...', status: 'active' }], active: true }]);
+              }
+              if (evt.phase === 'frontmatter_done') {
+                updateLastThinking(b => {
+                  const steps = [...b.steps];
+                  if (steps.length > 0 && steps[steps.length - 1].status === 'active') steps[steps.length - 1].status = 'done';
+                  steps.push({ text: `${evt.item === 'transmittal' ? 'Transmittal Letter' : evt.item === 'ep_declaration' ? 'EP Declaration' : 'Insurance Certificate'} created`, status: 'done' });
+                  return { ...b, steps };
+                });
+              }
+
+              // Vision analysis
+              if (evt.phase === 'vision_analysis') {
+                updateLastThinking(b => ({ ...b, active: false }));
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'AI Vision Analysis', steps: [{ text: 'Analyzing imagery with Claude vision...', status: 'active' }], active: true }]);
+              }
+              if (evt.phase === 'vision_done') {
+                updateLastThinking(b => {
+                  const steps = [...b.steps];
+                  if (steps.length > 0 && steps[steps.length - 1].status === 'active') steps[steps.length - 1].status = 'done';
+                  const label = evt.item === 'satellite' ? 'Satellite image analyzed' : `Street View images analyzed (${evt.count || 4} views)`;
+                  steps.push({ text: label, status: 'done' });
+                  return { ...b, steps };
+                });
+              }
+              if (evt.phase === 'vision_complete') {
+                updateLastThinking(b => ({ ...b, active: false }));
+              }
+
+              // Appendix generation
+              if (evt.phase === 'generating_appendices') {
+                updateLastThinking(b => ({ ...b, active: false }));
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'Generating Appendices', steps: [{ text: 'Creating appendices...', status: 'active' }], active: true }]);
+              }
+              if (evt.phase === 'appendix_done') {
+                updateLastThinking(b => {
+                  const steps = [...b.steps];
+                  if (steps.length > 0 && steps[steps.length - 1].status === 'active') steps[steps.length - 1].status = 'done';
+                  steps.push({ text: `Appendix ${evt.appendix}: ${evt.title}`, status: 'done' });
+                  return { ...b, steps };
+                });
+              }
+              if (evt.phase === 'appendices_done') {
+                updateLastThinking(b => ({ ...b, active: false }));
+              }
+
+              // Writing phase — reuse same SSE format as auto-pipeline
+              if (evt.phase === 'writing' && currentPhase !== 'writing') {
+                currentPhase = 'writing';
+                writingSteps = [
+                  { text: 'Executive Summary & Findings', status: 'pending' },
+                  { text: '1.0 Introduction', status: 'pending' },
+                  { text: '2.0 Property Description', status: 'pending' },
+                  { text: '3.0 Property Reconnaissance', status: 'pending' },
+                  { text: '4.0 Property and Vicinity History', status: 'pending' },
+                  { text: '5.0 Standard Environmental Records Research', status: 'pending' },
+                  { text: '6.0 User Provided Information', status: 'pending' },
+                  { text: '7.0 References', status: 'pending' },
+                ];
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'Writing report narrative (Claude Sonnet)', steps: [...writingSteps], active: true }]);
+              }
+
+              if (evt.phase === 'writing' && evt.title && !evt.step) {
+                const idx = writingSteps.findIndex(s => s.status === 'pending');
+                if (idx >= 0) writingSteps[idx] = { ...writingSteps[idx], status: 'active' };
+                updateLastThinking(b => ({ ...b, steps: writingSteps.map(s => ({...s})) }));
+              }
+
+              if (evt.phase === 'writing' && evt.step === 'done') {
+                const idx = writingSteps.findIndex(s => s.status === 'active');
+                if (idx >= 0) writingSteps[idx] = { text: `${evt.title} — ${evt.wordCount} words ($${evt.costUsd})`, status: 'done' };
+                updateLastThinking(b => ({ ...b, steps: writingSteps.map(s => ({...s})) }));
+              }
+
+              if (evt.phase === 'writing' && evt.step === 'error') {
+                const idx = writingSteps.findIndex(s => s.status === 'active');
+                if (idx >= 0) writingSteps[idx] = { text: `${evt.section} — Error`, status: 'done' };
+                updateLastThinking(b => ({ ...b, steps: writingSteps.map(s => ({...s})) }));
+              }
+
+              if (evt.phase === 'written') {
+                updateLastThinking(b => ({ ...b, active: false }));
+              }
+
+              // Assembly phase
+              if (evt.phase === 'assembling' && currentPhase !== 'assembling') {
+                currentPhase = 'assembling';
+                assemblySteps = [{ text: 'Assembling sections...', status: 'active' }];
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'Assembling final PDF', steps: [...assemblySteps], active: true }]);
+              }
+
+              if (evt.phase === 'assembling' && evt.step === 'narrative') {
+                assemblySteps.push({ text: `Adding AI narrative: ${evt.section.replace(/_/g, ' ')}`, status: 'done' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+
+              if (evt.phase === 'assembling' && evt.step === 'document') {
+                assemblySteps.push({ text: `Adding: ${evt.file}`, status: 'done' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+
+              if (evt.phase === 'assembling' && evt.step === 'saving') {
+                assemblySteps.push({ text: `Saving ${evt.totalPages}-page PDF...`, status: 'active' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+
+              // Compression
+              if (evt.phase === 'compressing') {
+                assemblySteps.push({ text: `Compressing ${evt.inputSizeMB}MB report...`, status: 'active' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+              if (evt.phase === 'compressed' && !evt.skipped) {
+                assemblySteps[assemblySteps.length - 1] = { text: `Compressed: ${evt.inputSizeMB}MB → ${evt.outputSizeMB}MB (${evt.reductionPercent}% smaller)`, status: 'done' };
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+
+              // QC Check
+              if (evt.phase === 'qc') {
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'AI Quality Check', steps: [{ text: 'Running QC checks...', status: 'active' }], active: true }]);
+              }
+              if (evt.phase === 'qc_complete' && !evt.skipped) {
+                updateLastThinking(b => ({ ...b, active: false, steps: [
+                  { text: `Score: ${evt.score}/100 — ${evt.passed ? 'PASSED' : 'NEEDS REVIEW'}`, status: evt.passed ? 'done' : 'active' },
+                  ...evt.checks.map(c => ({ text: `${c.status === 'pass' ? '✓' : c.status === 'warn' ? '⚠' : '✗'} ${c.label}: ${c.detail}`, status: c.status === 'pass' ? 'done' : 'active' })),
+                ]}));
+                setBlocks(prev => [...prev, { type: 'qc', data: evt }]);
+              }
+
+              // AI QC (post-assembly review)
+              if (evt.phase === 'ai_qc' && !evt.step) {
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'AI Report Review', steps: [{ text: evt.message, status: 'active' }], active: true }]);
+              }
+              if (evt.phase === 'ai_qc' && evt.step === 'analyzing') {
+                updateLastThinking(b => ({ ...b, steps: [{ text: evt.message, status: 'active' }] }));
+              }
+              if (evt.phase === 'ai_qc_complete' && !evt.skipped) {
+                updateLastThinking(b => ({ ...b, active: false, steps: [
+                  { text: evt.passed ? 'AI Review: PASSED' : 'AI Review: Issues Found', status: evt.passed ? 'done' : 'active' },
+                  ...(evt.findings || []).map(f => ({
+                    text: (f.severity === 'error' ? '\u2717 ' : f.severity === 'warning' ? '\u26a0 ' : '\u2139 ') + f.message,
+                    status: f.severity === 'error' ? 'active' : f.severity === 'warning' ? 'active' : 'done'
+                  })),
+                ]}));
+                setBlocks(prev => [...prev, { type: 'ai_qc', data: evt }]);
+              }
+              if (evt.phase === 'ai_qc_complete' && evt.skipped) {
+                updateLastThinking(b => ({ ...b, active: false, steps: [{ text: 'AI review skipped: ' + evt.reason, status: 'done' }] }));
+              }
+
+              // Done
+              if (evt.phase === 'done') {
+                updateLastThinking(b => ({ ...b, active: false }));
+                setPid(evt.projectId);
+                setBlocks(prev => [...prev, { type: 'result', data: evt }]);
+                setPhase('done');
+              }
+
+              if (evt.phase === 'error') {
+                updateLastThinking(b => ({ ...b, active: false }));
+                setBlocks(prev => [...prev, { type: 'msg', text: `Error: ${evt.error}` }]);
+                setPhase('error');
+              }
+            }
+          }
+        } catch (err) {
+          setBlocks(prev => [...prev, { type: 'msg', text: `Connection error: ${err.message}` }]);
+          setPhase('error');
+        }
+        setResearching(false);
+      };
+
+      const runPipeline = async (selectedFiles) => {
+        setPhase('running');
+        setBlocks([]);
+
+        // Show what was uploaded
+        const hasZip = selectedFiles.some(f => f.name.toLowerCase().endsWith('.zip'));
+        const pdfCount = selectedFiles.filter(f => f.name.toLowerCase().endsWith('.pdf')).length;
+        const otherCount = selectedFiles.length - pdfCount - (hasZip ? 1 : 0);
+        let uploadMsg = `Uploaded ${selectedFiles.length} file(s).`;
+        if (hasZip) uploadMsg += ' Extracting ZIP contents.';
+        if (otherCount > 0) uploadMsg += ` Converting ${otherCount} non-PDF file(s).`;
+        uploadMsg += ' Starting pipeline...';
+        addBlock({ type: 'msg', text: uploadMsg });
+
+        // Upload via the auto-pipeline endpoint
+        const fd = new FormData();
+        selectedFiles.forEach(f => fd.append('files', f));
+
+        // Start thinking block for classification
+        const classSteps = selectedFiles.map(f => ({ text: f.name, status: 'pending' }));
+
+        try {
+          const response = await fetch('/api/auto-pipeline', { method: 'POST', body: fd });
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+          let currentPhase = '';
+          let classificationResult = null;
+          let writingSteps = [];
+          let assemblySteps = [];
+          let visionSteps = [];
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop() || '';
+
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              let evt;
+              try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+              // Phase transitions — add thinking blocks
+              if (evt.phase === 'extracting') {
+                setBlocks(prev => [...prev, { type: 'msg', text: `Extracted ${evt.fileCount} documents from upload.` }]);
+              }
+
+              if (evt.phase === 'zip_exclusions') {
+                const summary = evt.excluded.map(r => `${r.folder} (${r.count} files)`).join(', ');
+                setBlocks(prev => [...prev, { type: 'zip_exclusions', data: evt, text: `Excluded raw regulatory database files — not part of the ESA report: ${summary}` }]);
+              }
+
+              if (evt.phase === 'created') {
+                setPid(evt.projectId);
+                setBlocks(prev => [...prev, { type: 'msg', text: `Project created (${evt.fileCount} files). Classifying...` }]);
+              }
+
+              if (evt.phase === 'classifying' && currentPhase !== 'classifying') {
+                currentPhase = 'classifying';
+                // Rebuild classSteps from actual file count (may differ from selectedFiles if ZIP was extracted)
+                classSteps.length = 0;
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'Classifying documents', steps: [...classSteps], active: true }]);
+              }
+
+              if (evt.phase === 'classifying') {
+                if (evt.step === 'reading' || evt.step === 'ai') {
+                  // Add or update step for this file
+                  let idx = classSteps.findIndex(s => s.file === evt.file);
+                  if (idx < 0) { classSteps.push({ text: evt.file, file: evt.file, status: 'active' }); }
+                  else { classSteps[idx] = { ...classSteps[idx], status: 'active' }; }
+                  updateLastThinking(b => ({ ...b, steps: classSteps.map(s => ({...s})) }));
+                }
+                if (evt.step === 'done') {
+                  let idx = classSteps.findIndex(s => s.file === evt.file);
+                  if (idx < 0) { classSteps.push({ text: evt.file, file: evt.file, status: 'done' }); idx = classSteps.length - 1; }
+                  classSteps[idx] = { text: `${evt.file} → ${evt.label} (${Math.round(evt.confidence * 100)}%, ${evt.method})`, file: evt.file, status: 'done' };
+                  updateLastThinking(b => ({ ...b, steps: classSteps.map(s => ({...s})) }));
+                }
+              }
+
+              if (evt.phase === 'file_selection') {
+                setBlocks(prev => [...prev, { type: 'file_selection', data: evt }]);
+              }
+
+              if (evt.phase === 'classified') {
+                updateLastThinking(b => ({ ...b, active: false }));
+                classificationResult = evt;
+                // Don't add classification block here — wait for needs_review to show the review UI
+              }
+
+              if (evt.phase === 'needs_review') {
+                // Pipeline paused — show the review UI with classification data
+                setBlocks(prev => [...prev, { type: 'classification_review', data: { ...classificationResult, projectId: evt.projectId, needsReviewCount: evt.needsReviewCount } }]);
+                setPhase('reviewing');
+              }
+
+              if (evt.phase === 'review_accepted') {
+                setBlocks(prev => [...prev, { type: 'msg', text: evt.message }]);
+              }
+
+              // completeness_warning suppressed — runs before review so classifications may still change; QC catches real gaps post-assembly
+
+              // Updated completeness after all files generated — replace stale warning
+              if (evt.phase === 'completeness_update') {
+                setBlocks(prev => {
+                  const filtered = prev.filter(b => b.type !== 'completeness');
+                  if (evt.missing && evt.missing.length > 0) {
+                    return [...filtered, { type: 'completeness', data: { missing: evt.missing, warnings: [] } }];
+                  }
+                  return filtered; // No missing items — remove the warning entirely
+                });
+              }
+
+              // Cross-property spot check
+              if (evt.phase === 'cross_check' && !evt.step) {
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'Cross-Property Spot Check', steps: [{ text: evt.message, status: 'active' }], active: true }]);
+              }
+              if (evt.phase === 'cross_check' && evt.step === 'flagged') {
+                updateLastThinking(b => ({ ...b, steps: [...(b.steps || []).filter(s => s.status !== 'active'), { text: '\u26a0 ' + evt.message, status: 'active' }] }));
+              }
+              if (evt.phase === 'cross_check' && evt.step === 'ok') {
+                updateLastThinking(b => ({ ...b, steps: [...(b.steps || []).filter(s => s.status !== 'active'), { text: '\u2713 ' + evt.message, status: 'done' }] }));
+              }
+              if (evt.phase === 'cross_check_complete') {
+                updateLastThinking(b => ({ ...b, active: false, steps: [{ text: evt.message, status: evt.flagged > 0 ? 'active' : 'done' }] }));
+              }
+
+              // AI QC (post-assembly review)
+              if (evt.phase === 'ai_qc' && !evt.step) {
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'AI Report Review', steps: [{ text: evt.message, status: 'active' }], active: true }]);
+              }
+              if (evt.phase === 'ai_qc' && evt.step === 'analyzing') {
+                updateLastThinking(b => ({ ...b, steps: [{ text: evt.message, status: 'active' }] }));
+              }
+              if (evt.phase === 'ai_qc_complete' && !evt.skipped) {
+                updateLastThinking(b => ({ ...b, active: false, steps: [
+                  { text: evt.passed ? 'AI Review: PASSED' : 'AI Review: Issues Found', status: evt.passed ? 'done' : 'active' },
+                  ...(evt.findings || []).map(f => ({
+                    text: (f.severity === 'error' ? '\u2717 ' : f.severity === 'warning' ? '\u26a0 ' : '\u2139 ') + f.message,
+                    status: f.severity === 'error' ? 'active' : f.severity === 'warning' ? 'active' : 'done'
+                  })),
+                ]}));
+                setBlocks(prev => [...prev, { type: 'ai_qc', data: evt }]);
+              }
+              if (evt.phase === 'ai_qc_complete' && evt.skipped) {
+                updateLastThinking(b => ({ ...b, active: false, steps: [{ text: 'AI review skipped: ' + evt.reason, status: 'done' }] }));
+              }
+
+              if (evt.phase === 'writing' && currentPhase !== 'writing') {
+                currentPhase = 'writing';
+                writingSteps = [
+                  { text: 'Executive Summary & Findings', status: 'pending' },
+                  { text: '1.0 Introduction', status: 'pending' },
+                  { text: '2.0 Property Description', status: 'pending' },
+                  { text: '3.0 Property Reconnaissance', status: 'pending' },
+                  { text: '4.0 Property and Vicinity History', status: 'pending' },
+                  { text: '5.0 Standard Environmental Records Research', status: 'pending' },
+                  { text: '6.0 User Provided Information', status: 'pending' },
+                  { text: '7.0 References', status: 'pending' },
+                ];
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'Writing report narrative (Claude Sonnet)', steps: [...writingSteps], active: true }]);
+              }
+
+              if (evt.phase === 'writing' && evt.title && !evt.step) {
+                const idx = writingSteps.findIndex(s => s.status === 'pending');
+                if (idx >= 0) writingSteps[idx] = { ...writingSteps[idx], status: 'active' };
+                updateLastThinking(b => ({ ...b, steps: writingSteps.map(s => ({...s})) }));
+              }
+
+              if (evt.phase === 'writing' && evt.step === 'done') {
+                const idx = writingSteps.findIndex(s => s.status === 'active');
+                if (idx >= 0) writingSteps[idx] = { text: `${evt.title} — ${evt.wordCount} words ($${evt.costUsd})`, status: 'done' };
+                updateLastThinking(b => ({ ...b, steps: writingSteps.map(s => ({...s})) }));
+              }
+
+              if (evt.phase === 'writing' && evt.step === 'error') {
+                const idx = writingSteps.findIndex(s => s.status === 'active');
+                if (idx >= 0) writingSteps[idx] = { text: `${evt.section} — Error`, status: 'done' };
+                updateLastThinking(b => ({ ...b, steps: writingSteps.map(s => ({...s})) }));
+              }
+
+              if (evt.phase === 'written') {
+                updateLastThinking(b => ({ ...b, active: false }));
+              }
+
+              if (evt.phase === 'assembling' && currentPhase !== 'assembling') {
+                currentPhase = 'assembling';
+                assemblySteps = [{ text: 'Assembling sections...', status: 'active' }];
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'Assembling final PDF', steps: [...assemblySteps], active: true }]);
+              }
+
+              if (evt.phase === 'assembling' && evt.step === 'narrative') {
+                assemblySteps.push({ text: `Adding AI narrative: ${evt.section.replace(/_/g, ' ')}`, status: 'done' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+
+              if (evt.phase === 'assembling' && evt.step === 'document') {
+                assemblySteps.push({ text: `Adding: ${evt.file}`, status: 'done' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+
+              if (evt.phase === 'assembling' && evt.step === 'saving') {
+                assemblySteps.push({ text: `Saving ${evt.totalPages}-page PDF...`, status: 'active' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+
+              // Unlock events
+              if (evt.phase === 'unlocking') {
+                setBlocks(prev => [...prev, { type: 'msg', text: `Unlocking protected PDF: ${evt.file}` }]);
+              }
+              if (evt.phase === 'unlocked' && evt.count > 0) {
+                setBlocks(prev => [...prev, { type: 'msg', text: `Unlocked ${evt.count} protected PDF(s)` }]);
+              }
+
+              // Site map generation
+              if (evt.phase === 'site_map') {
+                setBlocks(prev => [...prev, { type: 'msg', text: evt.message }]);
+              }
+              if (evt.phase === 'site_map_done' && !evt.skipped) {
+                setBlocks(prev => [...prev, { type: 'msg', text: `Site Location Map generated (${evt.pages} pages, method: ${evt.method})` }]);
+              }
+
+              // Vision AI analysis
+              if (evt.phase === 'vision_analyzing' && currentPhase !== 'vision') {
+                currentPhase = 'vision';
+                visionSteps = [{ text: `Analyzing ${evt.file}...`, file: evt.file, status: 'active' }];
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'Vision AI — Analyzing photographs', steps: [...visionSteps], active: true }]);
+              } else if (evt.phase === 'vision_analyzing') {
+                visionSteps.push({ text: `Analyzing ${evt.file}...`, file: evt.file, status: 'active' });
+                updateLastThinking(b => ({ ...b, steps: visionSteps.map(s => ({...s})) }));
+              }
+              if (evt.phase === 'vision_complete') {
+                const idx = visionSteps.findIndex(s => s.file === evt.file);
+                if (idx >= 0) visionSteps[idx] = { text: `${evt.file} — ${evt.pagesAnalyzed} pages analyzed ($${evt.costUsd})`, file: evt.file, status: 'done' };
+                updateLastThinking(b => ({ ...b, steps: visionSteps.map(s => ({...s})) }));
+              }
+              if (evt.phase === 'vision_skipped') {
+                const idx = visionSteps.findIndex(s => s.file === evt.file);
+                if (idx >= 0) visionSteps[idx] = { text: `${evt.file} — skipped: ${evt.reason}`, file: evt.file, status: 'done' };
+                else visionSteps.push({ text: `${evt.file} — skipped: ${evt.reason}`, file: evt.file, status: 'done' });
+                updateLastThinking(b => ({ ...b, steps: visionSteps.map(s => ({...s})) }));
+              }
+              if (evt.phase === 'vision_done') {
+                updateLastThinking(b => ({ ...b, active: false }));
+              }
+
+              // REC Detection
+              if (evt.phase === 'rec_detection') {
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'REC Auto-Detection (ASTM E1527-21)', steps: [{ text: 'Analyzing documents for environmental conditions...', status: 'active' }], active: true }]);
+              }
+              if (evt.phase === 'rec_detection_complete' && !evt.skipped) {
+                const s = evt.summary || {};
+                updateLastThinking(b => ({ ...b, active: false, steps: [
+                  { text: `Found ${(evt.recs||[]).length} environmental condition(s)`, status: 'done' },
+                  s.totalRECs > 0 ? { text: `${s.totalRECs} REC(s) — requires further investigation`, status: 'done' } : null,
+                  s.totalCRECs > 0 ? { text: `${s.totalCRECs} CREC(s) — controls in place`, status: 'done' } : null,
+                  s.totalHRECs > 0 ? { text: `${s.totalHRECs} HREC(s) — historically resolved`, status: 'done' } : null,
+                  s.totalDeMinimis > 0 ? { text: `${s.totalDeMinimis} de minimis condition(s)`, status: 'done' } : null,
+                ].filter(Boolean) }));
+                if (evt.recs && evt.recs.length > 0) {
+                  setBlocks(prev => [...prev, { type: 'rec', data: evt }]);
+                }
+              }
+              if (evt.phase === 'rec_detection_complete' && evt.skipped) {
+                updateLastThinking(b => ({ ...b, active: false, steps: [{ text: `Skipped: ${evt.reason}`, status: 'done' }] }));
+              }
+
+              // Compression
+              if (evt.phase === 'compressing') {
+                assemblySteps.push({ text: `Compressing ${evt.inputSizeMB}MB report...`, status: 'active' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+              if (evt.phase === 'compressed' && !evt.skipped) {
+                assemblySteps[assemblySteps.length - 1] = { text: `Compressed: ${evt.inputSizeMB}MB → ${evt.outputSizeMB}MB (${evt.reductionPercent}% smaller)`, status: 'done' };
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+
+              // Splitting
+              if (evt.phase === 'splitting') {
+                assemblySteps.push({ text: evt.message, status: 'active' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+              if (evt.phase === 'split') {
+                assemblySteps[assemblySteps.length - 1] = { text: `Split into ${evt.totalParts} parts for email delivery`, status: 'done' };
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+
+              // QC Check
+              if (evt.phase === 'qc') {
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'AI Quality Check', steps: [{ text: 'Running QC checks...', status: 'active' }], active: true }]);
+              }
+              if (evt.phase === 'qc_complete' && !evt.skipped) {
+                updateLastThinking(b => ({ ...b, active: false, steps: [
+                  { text: `Score: ${evt.score}/100 — ${evt.passed ? 'PASSED' : 'NEEDS REVIEW'}`, status: evt.passed ? 'done' : 'active' },
+                  ...evt.checks.map(c => ({ text: `${c.status === 'pass' ? '✓' : c.status === 'warn' ? '⚠' : '✗'} ${c.label}: ${c.detail}`, status: c.status === 'pass' ? 'done' : 'active' })),
+                ]}));
+                setBlocks(prev => [...prev, { type: 'qc', data: evt }]);
+              }
+
+              // Auto-delivery events
+              if (evt.phase === 'delivering') {
+                setBlocks(prev => [...prev, { type: 'msg', text: evt.message }]);
+              }
+              if (evt.phase === 'delivered') {
+                setBlocks(prev => [...prev, { type: 'msg', text: 'Email delivered to ' + (evt.recipients || []).join(', ') + ' (' + evt.attachmentCount + ' attachment(s))' }]);
+              }
+              if (evt.phase === 'delivery_error') {
+                setBlocks(prev => [...prev, { type: 'msg', text: 'Email delivery failed: ' + evt.error }]);
+              }
+
+              if (evt.phase === 'done') {
+                updateLastThinking(b => ({ ...b, active: false }));
+                setPid(evt.projectId);
+                setBlocks(prev => [...prev, { type: 'result', data: evt }]);
+                setPhase('done');
+              }
+
+              if (evt.phase === 'error') {
+                setBlocks(prev => [...prev, { type: 'msg', text: `Error: ${evt.error}` }]);
+                setPhase('error');
+              }
+            }
+          }
+        } catch (err) {
+          setBlocks(prev => [...prev, { type: 'msg', text: `Connection error: ${err.message}` }]);
+          setPhase('error');
+        }
+      };
+
+      const continueAfterReview = async (projId, changedFiles) => {
+        setPhase('running');
+        // Replace review block with a read-only classification summary
+        setBlocks(prev => prev.map(b => b.type === 'classification_review' ? { ...b, type: 'classification' } : b));
+
+        let assemblySteps = [];
+
+        try {
+          const response = await fetch('/api/projects/' + projId + '/review-classifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ files: changedFiles }),
+          });
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+          let currentPhase = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop() || '';
+
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              let evt;
+              try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+              if (evt.phase === 'review_accepted') {
+                addBlock({ type: 'msg', text: evt.message });
+              }
+
+              // Cross-property spot check
+              if (evt.phase === 'cross_check' && currentPhase !== 'cross_check') {
+                currentPhase = 'cross_check';
+                assemblySteps = [{ text: evt.message || 'Running cross-property check...', status: 'active' }];
+                addBlock({ type: 'thinking', title: 'Cross-Property Verification', steps: [...assemblySteps], active: true });
+              }
+              if (evt.phase === 'cross_check' && currentPhase === 'cross_check' && evt.file) {
+                assemblySteps.push({ text: 'Verified: ' + evt.file, status: 'done' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+              if (evt.phase === 'cross_check_complete') {
+                assemblySteps[0] = { text: evt.message || 'Cross-property check complete', status: 'done' };
+                updateLastThinking(b => ({ ...b, active: false, steps: assemblySteps.map(s => ({...s})) }));
+              }
+
+              // File conversion
+              if (evt.phase === 'processing' && evt.message && currentPhase !== 'converting') {
+                currentPhase = 'converting';
+                assemblySteps = [{ text: evt.message, status: 'active' }];
+                addBlock({ type: 'thinking', title: 'Converting Files', steps: [...assemblySteps], active: true });
+              } else if (evt.phase === 'processing' && evt.message) {
+                assemblySteps.push({ text: evt.message, status: 'active' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+              if (evt.phase === 'warning') {
+                assemblySteps.push({ text: '\u26a0 ' + evt.message, status: 'active' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+
+              if (evt.phase === 'assembling' && currentPhase !== 'assembling') {
+                currentPhase = 'assembling';
+                assemblySteps = [{ text: 'Assembling sections...', status: 'active' }];
+                addBlock({ type: 'thinking', title: 'Assembling final PDF', steps: [...assemblySteps], active: true });
+              }
+              if (evt.phase === 'assembling' && evt.step === 'document') {
+                assemblySteps.push({ text: 'Adding: ' + evt.file, status: 'done' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+              if (evt.phase === 'assembling' && evt.step === 'saving') {
+                assemblySteps.push({ text: 'Saving ' + evt.totalPages + '-page PDF...', status: 'active' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+
+              // Compression
+              if (evt.phase === 'compressing') {
+                assemblySteps.push({ text: 'Compressing ' + evt.inputSizeMB + 'MB report...', status: 'active' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+              if (evt.phase === 'compressed' && !evt.skipped) {
+                assemblySteps[assemblySteps.length - 1] = { text: 'Compressed: ' + evt.inputSizeMB + 'MB → ' + evt.outputSizeMB + 'MB (' + evt.reductionPercent + '% smaller)', status: 'done' };
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+
+              // Splitting
+              if (evt.phase === 'splitting') {
+                assemblySteps.push({ text: evt.message, status: 'active' });
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+              if (evt.phase === 'split') {
+                assemblySteps[assemblySteps.length - 1] = { text: 'Split into ' + evt.totalParts + ' parts', status: 'done' };
+                updateLastThinking(b => ({ ...b, steps: assemblySteps.map(s => ({...s})) }));
+              }
+
+              // QC
+              if (evt.phase === 'qc') {
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'Quality Check', steps: [{ text: 'Running QC checks...', status: 'active' }], active: true }]);
+              }
+              if (evt.phase === 'qc_complete' && !evt.skipped) {
+                updateLastThinking(b => ({ ...b, active: false, steps: [
+                  { text: 'Score: ' + evt.score + '/100 — ' + (evt.passed ? 'PASSED' : 'NEEDS REVIEW'), status: evt.passed ? 'done' : 'active' },
+                  ...evt.checks.map(c => ({ text: (c.status === 'pass' ? '\u2713' : c.status === 'warn' ? '\u26a0' : '\u2717') + ' ' + c.label + ': ' + c.detail, status: c.status === 'pass' ? 'done' : 'active' })),
+                ]}));
+                setBlocks(prev => [...prev, { type: 'qc', data: evt }]);
+              }
+
+              // AI QC review
+              if (evt.phase === 'ai_qc' && currentPhase !== 'ai_qc') {
+                currentPhase = 'ai_qc';
+                setBlocks(prev => [...prev, { type: 'thinking', title: 'AI Quality Review', steps: [{ text: evt.message || 'AI reviewing assembled report...', status: 'active' }], active: true }]);
+              }
+              if (evt.phase === 'ai_qc' && currentPhase === 'ai_qc' && evt.message) {
+                updateLastThinking(b => ({ ...b, steps: [{ text: evt.message, status: 'active' }] }));
+              }
+              if (evt.phase === 'ai_qc_complete') {
+                updateLastThinking(b => ({ ...b, active: false, steps: [{ text: 'AI review complete', status: 'done' }] }));
+              }
+
+              if (evt.phase === 'done') {
+                updateLastThinking(b => ({ ...b, active: false }));
+                setPid(evt.projectId);
+                setBlocks(prev => [...prev, { type: 'result', data: evt }]);
+                setPhase('done');
+              }
+
+              if (evt.phase === 'error') {
+                setBlocks(prev => [...prev, { type: 'msg', text: 'Error: ' + evt.error }]);
+                setPhase('error');
+              }
+            }
+          }
+        } catch (err) {
+          setBlocks(prev => [...prev, { type: 'msg', text: 'Connection error: ' + err.message }]);
+          setPhase('error');
+        }
+      };
+
+      const handleFiles = (newFiles) => {
+        const supportedExts = ['.pdf','.zip','.vsd','.vsdx','.doc','.docx','.xls','.xlsx','.jpg','.jpeg','.png','.tif','.tiff'];
+        const accepted = Array.from(newFiles).filter(f => {
+          const ext = f.name.toLowerCase();
+          return supportedExts.some(e => ext.endsWith(e));
+        });
+        if (!accepted.length) return;
+        setFiles(accepted);
+        // Auto-start pipeline immediately
+        runPipeline(accepted);
+      };
+
+      const reset = () => {
+        setPhase('idle');
+        setBlocks([]);
+        setPid(null);
+        setFiles([]);
+      };
+
+      const fmtBytes = (b) => {
+        if (!b) return '0 B';
+        const k = 1024, s = ['B','KB','MB','GB'];
+        const i = Math.floor(Math.log(b)/Math.log(k));
+        return Math.round(b/Math.pow(k,i)*100)/100+' '+s[i];
+      };
+
+      return (
+        <div>
+          {/* Hamburger (mobile only) */}
+          <button className="hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>&#9776;</button>
+
+          {/* Sidebar */}
+          <div className="sidebar" style={window.innerWidth <= 768 && !sidebarOpen ? {display:'none'} : undefined}>
+            <div className="sidebar-header">
+              <div style={{fontWeight:700, fontSize:16, marginBottom:4}}>ODIC Environmental</div>
+              <div style={{fontSize:12, color:'#888'}}>AI Report Assembly</div>
+            </div>
+            <div style={{padding:'12px 0', flex:1}}>
+              {projectId ? (
+                <>
+                  <div className={'sidebar-item' + (currentView === 'report' ? ' active' : '')} onClick={() => setCurrentView('report')}>
+                    <span>&#128196;</span>
+                    <span>{projectId.slice(0,8)}</span>
+                  </div>
+                  <div className="sidebar-item" onClick={() => setSiteVisitActive(!siteVisitActive)} style={{color: siteVisitActive ? '#4ade80' : '#ccc'}}>
+                    <span>&#128205;</span>
+                    <span>Site Visit Mode</span>
+                  </div>
+                </>
+              ) : (
+                <div className={'sidebar-item' + (currentView === 'report' ? ' active' : '')} onClick={() => setCurrentView('report')}>
+                  <span>&#10024;</span>
+                  <span>New Report</span>
+                </div>
+              )}
+              <div className={'sidebar-item' + (currentView === 'compress' ? ' active' : '')} onClick={() => setCurrentView('compress')}>
+                <span>&#128295;</span>
+                <span>PDF Tools</span>
+              </div>
+            </div>
+            <div style={{padding:'12px 16px', borderTop:'1px solid #333', fontSize:12, color:'#666'}}>
+              {health ? (
+                <div>
+                  <div>Pipeline: {health.pipelineReady ? <span style={{color:'#4ade80'}}>Ready</span> : 'Loading'}</div>
+                  <div>AI: {health.aiEnabled ? <span style={{color:'#4ade80'}}>Haiku + Sonnet</span> : <span style={{color:'#fbbf24'}}>Disabled</span>}</div>
+                </div>
+              ) : <div>Connecting...</div>}
+            </div>
+          </div>
+
+          {/* Main */}
+          <div className="main">
+            <div className="chat-area" ref={chatRef}>
+              <div className="chat-inner">
+
+                {/* PDF Tools View */}
+                {currentView === 'compress' && <PDFToolsView />}
+
+                {/* Report View */}
+                {currentView === 'report' && phase === 'idle' && (
+                  <div>
+                    <div style={{textAlign:'center', padding:'40px 0 20px'}}>
+                      <div style={{fontSize:36, marginBottom:12}}>&#127758;</div>
+                      <h2 style={{fontSize:22, fontWeight:700, marginBottom:6}}>ODIC Environmental AI</h2>
+                      <p style={{color:'var(--text-muted)', fontSize:15}}>Enter an address to research, or drop files to assemble a report.</p>
+                    </div>
+
+                    {/* Address → Full Report */}
+                    <div style={{background:'white', border:'1px solid var(--border)', borderRadius:12, padding:16, marginBottom:16}}>
+                      <div style={{fontSize:13, fontWeight:600, marginBottom:8, display:'flex', alignItems:'center', gap:6}}>
+                        <span style={{fontSize:16}}>&#127758;</span> Address → Full Report — Type an address, get a complete Phase I ESA
+                      </div>
+                      <div className="research-input">
+                        <input
+                          type="text"
+                          placeholder="e.g. 302 E Broadway, Vista, CA 92084"
+                          value={researchAddr}
+                          onChange={e => setResearchAddr(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter' && !researching) runAddressReport(); }}
+                        />
+                        <button onClick={runAddressReport} disabled={researching || researchAddr.trim().length < 5}>
+                          {researching ? 'Generating...' : 'Generate Report'}
+                        </button>
+                      </div>
+                      <div style={{fontSize:12, color:'var(--text-muted)'}}>
+                        Researches EPA, FEMA flood zone, soil, satellite imagery + state databases, then writes all 8 report sections and assembles a downloadable PDF. No documents needed.
+                      </div>
+                    </div>
+
+                    <div style={{textAlign:'center', padding:'8px 0', fontSize:13, color:'var(--text-muted)', fontWeight:600}}>— or —</div>
+
+                    <div className="upload-zone"
+                      onClick={() => fileRef.current.click()}
+                      onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('dragover'); }}
+                      onDragLeave={e => e.currentTarget.classList.remove('dragover')}
+                      onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('dragover'); handleFiles(e.dataTransfer.files); }}
+                    >
+                      <div style={{fontSize:40, marginBottom:12}}>&#128193;</div>
+                      <div style={{fontWeight:600, fontSize:16, marginBottom:6}}>Drop your project files here to start</div>
+                      <div style={{color:'var(--text-muted)', fontSize:14}}>
+                        Drop any combination of files — PDFs, ZIPs, images, Office docs, VSD drawings. AI will classify, convert, write all narratives, and assemble your report automatically.
+                      </div>
+                    </div>
+                    <input ref={fileRef} type="file" multiple accept=".pdf,.zip,.vsd,.vsdx,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tif,.tiff" style={{display:'none'}}
+                      onChange={e => handleFiles(e.target.files)} />
+                  </div>
+                )}
+
+                {/* Running / Done — stream output */}
+                {currentView === 'report' && phase !== 'idle' && blocks.map((block, i) => {
+                  if (block.type === 'msg') {
+                    return <div className="ai-msg" key={i}>{block.text}</div>;
+                  }
+                  if (block.type === 'thinking') {
+                    return <ThinkingBlock key={i} title={block.title} steps={block.steps} active={block.active} />;
+                  }
+                  if (block.type === 'zip_exclusions') {
+                    const totalExcluded = (block.data.excluded || []).reduce((s, r) => s + r.count, 0);
+                    return (
+                      <Artifact key={i} icon="&#128220;" title="Regulatory Dump Excluded" subtitle={`${totalExcluded} raw database files not included`}>
+                        <div className="ai-msg" style={{fontSize:13, marginBottom:8}}>
+                          The ZIP contained raw regulatory database export folders. These are reference data, not standalone ESA documents — they have been excluded from assembly.
+                        </div>
+                        <table className="result-table">
+                          <thead><tr><th>Folder</th><th>Files Excluded</th></tr></thead>
+                          <tbody>
+                            {(block.data.excluded || []).map((r, j) => (
+                              <tr key={j}>
+                                <td style={{fontFamily:'monospace', fontSize:12}}>{r.folder}</td>
+                                <td style={{textAlign:'right'}}>{r.count}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </Artifact>
+                    );
+                  }
+                  if (block.type === 'file_selection') {
+                    return (
+                      <Artifact key={i} icon="&#128269;" title="Smart File Selection" subtitle={`${block.data.superseded} files skipped`}>
+                        <div className="ai-msg" style={{fontSize:13, marginBottom:8}}>
+                          Detected {block.data.superseded} superseded files (older revisions or unmerged originals). Using {block.data.selected} files.
+                        </div>
+                        <table className="result-table">
+                          <thead><tr><th>Skipped File</th><th>Reason</th></tr></thead>
+                          <tbody>
+                            {(block.data.skippedFiles || []).map((f, j) => (
+                              <tr key={j}>
+                                <td style={{maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={f.filename}>{f.filename}</td>
+                                <td style={{fontSize:12,color:'var(--text-muted)'}}>{f.reason}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </Artifact>
+                    );
+                  }
+                  if (block.type === 'completeness') {
+                    return (
+                      <Artifact key={i} icon="&#9888;" title="Missing Documents" subtitle={`${block.data.missing.length} not found`}>
+                        <div style={{fontSize:13}}>
+                          {block.data.missing.map((m, j) => (
+                            <div key={j} style={{padding:'4px 0', display:'flex', alignItems:'center', gap:8}}>
+                              <span style={{color: m.includes('CRITICAL') ? '#dc2626' : '#d97706', fontSize:16}}>
+                                {m.includes('CRITICAL') ? '●' : '○'}
+                              </span>
+                              <span style={{color: m.includes('CRITICAL') ? '#dc2626' : '#854d0e'}}>{m}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{marginTop:10, fontSize:12, color:'var(--text-muted)', fontStyle:'italic'}}>
+                          Pipeline will continue — missing documents will be noted in the report.
+                        </div>
+                      </Artifact>
+                    );
+                  }
+                  if (block.type === 'classification') {
+                    return <ClassificationArtifact key={i} block={block} projectId={projectId} />;
+                  }
+                  if (block.type === 'classification_review') {
+                    return <ClassificationReviewArtifact key={i} block={block} projectId={projectId} onApprove={(changedFiles) => continueAfterReview(projectId, changedFiles)} />;
+                  }
+                  if (block.type === 'rec') {
+                    const rd = block.data;
+                    const s = rd.summary || {};
+                    const recs = rd.recs || [];
+                    const severityBadge = (sev) => sev === 'high' ? 'badge-red' : sev === 'medium' ? 'badge-yellow' : 'badge-green';
+                    const classBadge = (cls) => cls === 'REC' ? 'badge-red' : cls === 'CREC' ? 'badge-yellow' : cls === 'HREC' ? 'badge-blue' : 'badge-gray';
+                    return (
+                      <Artifact key={i} icon="&#9888;" title="Environmental Conditions (RECs)" subtitle={`${recs.length} finding(s) — Risk: ${s.overallRiskLevel || 'unknown'}`}>
+                        <div className="stat-grid" style={{marginBottom:14}}>
+                          <div className="stat-card" style={{background:'#fee2e2'}}><div className="value" style={{color:'#991b1b'}}>{s.totalRECs||0}</div><div className="label">RECs</div></div>
+                          <div className="stat-card" style={{background:'#fef9c3'}}><div className="value" style={{color:'#854d0e'}}>{s.totalCRECs||0}</div><div className="label">CRECs</div></div>
+                          <div className="stat-card" style={{background:'#dbeafe'}}><div className="value" style={{color:'#1e40af'}}>{s.totalHRECs||0}</div><div className="label">HRECs</div></div>
+                          <div className="stat-card" style={{background:'#f3f4f6'}}><div className="value" style={{color:'#374151'}}>{s.totalDeMinimis||0}</div><div className="label">De Minimis</div></div>
+                        </div>
+                        <table className="result-table">
+                          <thead><tr><th>ID</th><th>Classification</th><th>Finding</th><th>Location</th><th>Severity</th></tr></thead>
+                          <tbody>
+                            {recs.map((r, j) => (
+                              <tr key={j}>
+                                <td style={{fontWeight:600,whiteSpace:'nowrap'}}>{r.id}</td>
+                                <td><span className={'badge '+classBadge(r.classification)}>{r.classification}</span></td>
+                                <td>
+                                  <div style={{fontWeight:600,fontSize:13}}>{r.title}</div>
+                                  <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2,maxWidth:300}}>{r.description.substring(0,120)}{r.description.length>120?'...':''}</div>
+                                </td>
+                                <td style={{fontSize:12,whiteSpace:'nowrap'}}>{r.location}</td>
+                                <td><span className={'badge '+severityBadge(r.severity)}>{r.severity}</span></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </Artifact>
+                    );
+                  }
+                  if (block.type === 'qc') {
+                    const qc = block.data;
+                    return (
+                      <Artifact key={i} icon={qc.passed ? '✓' : '⚠'} title="Quality Check Results" subtitle={`Score: ${qc.score}/100`}>
+                        <div style={{fontSize:13, marginBottom:12, lineHeight:1.6}}>{qc.summary}</div>
+                        {(qc.checks || []).map((c, j) => (
+                          <div key={j} style={{padding:'4px 0', display:'flex', gap:8, fontSize:13}}>
+                            <span style={{color: c.status==='pass' ? '#16a34a' : c.status==='warn' ? '#d97706' : '#dc2626', fontWeight:700}}>
+                              {c.status === 'pass' ? '✓' : c.status === 'warn' ? '⚠' : '✗'}
+                            </span>
+                            <span><strong>{c.label}:</strong> {c.detail}</span>
+                          </div>
+                        ))}
+                        {qc.recordsAnalysis && (
+                          <div style={{marginTop:12, padding:12, background:'#f9fafb', borderRadius:8, fontSize:12}}>
+                            <div style={{fontWeight:600, marginBottom:4}}>Records Analysis</div>
+                            {qc.recordsAnalysis.missingRecords?.length > 0 && (
+                              <div style={{color:'#dc2626'}}>Missing: {qc.recordsAnalysis.missingRecords.join(', ')}</div>
+                            )}
+                            {qc.recordsAnalysis.recommendation && (
+                              <div style={{color:'var(--text-muted)', marginTop:4}}>
+                                Recommendation: {qc.recordsAnalysis.recommendation.replace(/_/g, ' ')}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {qc.costUsd && <div style={{marginTop:8,fontSize:11,color:'var(--text-muted)'}}>QC cost: ${qc.costUsd}</div>}
+                      </Artifact>
+                    );
+                  }
+                  if (block.type === 'ai_qc') {
+                    const aqc = block.data;
+                    const severityColor = { error: '#dc2626', warning: '#d97706', info: '#2563eb' };
+                    const severityIcon = { error: '\u2717', warning: '\u26a0', info: '\u2139' };
+                    return (
+                      <Artifact key={i} icon={aqc.passed ? '\u2713' : '\u26a0'} title="AI Report Review" subtitle={aqc.passed ? 'Passed' : 'Issues Found'}>
+                        <div style={{fontSize:13, marginBottom:12, lineHeight:1.6}}>{aqc.summary}</div>
+                        {(aqc.findings || []).length > 0 && (
+                          <div style={{display:'flex', flexDirection:'column', gap:6}}>
+                            {aqc.findings.map((f, j) => (
+                              <div key={j} style={{padding:'8px 12px', borderRadius:8, fontSize:13, display:'flex', gap:8, alignItems:'flex-start',
+                                background: f.severity === 'error' ? '#fef2f2' : f.severity === 'warning' ? '#fffbeb' : '#eff6ff'}}>
+                                <span style={{color: severityColor[f.severity] || '#6b7280', fontWeight:700, flexShrink:0}}>
+                                  {severityIcon[f.severity] || '\u2022'}
+                                </span>
+                                <div>
+                                  <span style={{fontWeight:600}}>[{f.category?.replace(/_/g, ' ')}]</span>{' '}
+                                  <span>{f.message}</span>
+                                  {f.section && <span style={{color:'var(--text-muted)', fontSize:11, marginLeft:6}}>({f.section})</span>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {(aqc.findings || []).length === 0 && (
+                          <div style={{padding:'8px 12px', borderRadius:8, fontSize:13, background:'#f0fdf4', color:'#166534'}}>
+                            No issues detected. Report structure and content look correct.
+                          </div>
+                        )}
+                        <div style={{marginTop:8, display:'flex', gap:12, fontSize:11, color:'var(--text-muted)'}}>
+                          {aqc.errorCount > 0 && <span style={{color:'#dc2626'}}>{aqc.errorCount} error(s)</span>}
+                          {aqc.warningCount > 0 && <span style={{color:'#d97706'}}>{aqc.warningCount} warning(s)</span>}
+                          {aqc.infoCount > 0 && <span style={{color:'#2563eb'}}>{aqc.infoCount} info</span>}
+                          {aqc.costUsd && <span>Cost: ${aqc.costUsd}</span>}
+                        </div>
+                      </Artifact>
+                    );
+                  }
+                  if (block.type === 'research') {
+                    const rd = block.data;
+                    const gc = rd.geocode || {};
+                    const fz = rd.floodZone;
+                    const soil = rd.soilData;
+                    const epa = rd.regulatoryFindings?.epa || [];
+                    const st = rd.regulatoryFindings?.state || [];
+                    const sanborn = rd.sanbornMaps || [];
+                    const topos = rd.historicalTopos || [];
+                    const gw = rd.groundwater;
+                    return (
+                      <Artifact key={i} icon="&#127758;" title="Address Research Complete" subtitle={gc.formattedAddress || ''}>
+                        <div className="stat-grid" style={{marginBottom:14}}>
+                          <div className="stat-card" style={{background:'#dbeafe'}}><div className="value" style={{color:'#1e40af',fontSize:16}}>{gc.lat?.toFixed(4)}, {gc.lng?.toFixed(4)}</div><div className="label">Coordinates</div></div>
+                          <div className="stat-card" style={{background: fz?.inFloodplain ? '#fee2e2' : '#dcfce7'}}><div className="value" style={{color: fz?.inFloodplain ? '#991b1b' : '#166534', fontSize:16}}>{fz?.zone || 'N/A'}</div><div className="label">Flood Zone</div></div>
+                          <div className="stat-card" style={{background:'#fef9c3'}}><div className="value" style={{color:'#854d0e'}}>{epa.length}</div><div className="label">EPA Sites</div></div>
+                          <div className="stat-card" style={{background:'#f3e8ff'}}><div className="value" style={{color:'#6b21a8'}}>{st.length}</div><div className="label">State Sites</div></div>
+                          <div className="stat-card" style={{background:'#fff7ed'}}><div className="value" style={{color:'#9a3412'}}>{sanborn.length}</div><div className="label">Sanborn Maps</div></div>
+                          <div className="stat-card" style={{background:'#ecfdf5'}}><div className="value" style={{color:'#065f46'}}>{topos.length}</div><div className="label">USGS Topos</div></div>
+                          <div className="stat-card" style={{background:'#eff6ff'}}><div className="value" style={{color:'#1e3a8a'}}>{gw?.siteCount || 0}</div><div className="label">GW Wells</div></div>
+                          <div className="stat-card" style={{background:'#fdf2f8'}}><div className="value" style={{color:'#9d174d'}}>{rd.streetViewCount || 0}</div><div className="label">Street View</div></div>
+                          {rd.ejscreen && <div className="stat-card" style={{background:'#fefce8'}}><div className="value" style={{color:'#713f12', fontSize:13}}>EJ Data</div><div className="label">EJScreen</div></div>}
+                        </div>
+                        {soil && <div style={{fontSize:13, marginBottom:8}}>Soil: {soil.soilTypes?.join(', ') || 'N/A'} | Drainage: {soil.drainageClass || 'N/A'} | Hydro Group: {soil.hydrologicGroup || 'N/A'}</div>}
+                        {epa.length > 0 && (
+                          <div style={{marginTop:8}}>
+                            <div style={{fontSize:12, fontWeight:700, color:'var(--text-muted)', marginBottom:4}}>EPA Facilities Nearby</div>
+                            <table className="result-table">
+                              <thead><tr><th>Facility</th><th>Database</th><th>Distance</th><th>Status</th></tr></thead>
+                              <tbody>
+                                {epa.slice(0,10).map((f, j) => (
+                                  <tr key={j}>
+                                    <td style={{maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={f.facilityName}>{f.facilityName}</td>
+                                    <td><span className="badge badge-blue">{f.database}</span></td>
+                                    <td>{f.distance}</td>
+                                    <td><span className={'badge '+(f.status==='Active'?'badge-yellow':'badge-gray')}>{f.status}</span></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        {rd.hasSatellite && (
+                          <div style={{marginTop:12, textAlign:'center'}}>
+                            <img src={'/uploads/' + rd.projectId + '/satellite_aerial.png'} alt="Satellite" style={{maxWidth:'100%', borderRadius:8, border:'1px solid var(--border)'}} />
+                            <div style={{fontSize:11, color:'var(--text-muted)', marginTop:4}}>Satellite imagery (Google Maps)</div>
+                          </div>
+                        )}
+                        <div style={{marginTop:12, fontSize:12, color:'var(--text-muted)'}}>
+                          Sources: {(rd.dataSources||[]).map(d => d.name).join(', ')}
+                        </div>
+                        <div style={{marginTop:12, display:'flex', gap:8}}>
+                          <button className="reset-btn" style={{flex:1}} onClick={() => { setPhase('idle'); setBlocks([]); setFiles([]); }}>
+                            Upload documents to this project
+                          </button>
+                          <button className="reset-btn" style={{flex:1}} onClick={() => { setPhase('idle'); setBlocks([]); setPid(null); setFiles([]); }}>
+                            &#43; New Research
+                          </button>
+                        </div>
+                      </Artifact>
+                    );
+                  }
+                  if (block.type === 'result') {
+                    const d = block.data;
+                    return <ResultArtifact key={i} data={d} projectId={projectId} onReset={() => { setPhase('idle'); setBlocks([]); setPid(null); setFiles([]); }} />;
+                  }
+                  return null;
+                })}
+
+                {/* Site Visit Mode */}
+                {currentView === 'report' && siteVisitActive && projectId && (
+                  <SiteVisitPanel projectId={projectId} onObservation={(o) => {
+                    setBlocks(prev => [...prev, { type: 'msg', text: `Site observation [${o.category}${o.potentialConcern ? ' ⚠' : ''}]: ${o.text}` }]);
+                  }} />
+                )}
+
+                {/* Running spinner at bottom */}
+                {currentView === 'report' && phase === 'running' && (
+                  <div style={{textAlign:'center', padding:20, fontSize:13, color:'var(--text-muted)'}}>
+                    <div className="spinner" style={{display:'inline-block', marginRight:8, verticalAlign:'middle'}}></div>
+                    Pipeline running...
+                  </div>
+                )}
+
+                {/* Error state */}
+                {currentView === 'report' && phase === 'error' && (
+                  <div style={{textAlign:'center', padding:20}}>
+                    <button className="reset-btn" onClick={reset} style={{maxWidth:300, margin:'0 auto'}}>
+                      &#8634; Try Again
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

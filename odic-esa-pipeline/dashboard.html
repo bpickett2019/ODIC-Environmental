@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ODIC Environmental - ESA Report Pipeline</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #fff;
+            color: #1a1a1a;
+        }
+        .stepper-item.active .stepper-circle { background: #2563eb; color: white; }
+        .stepper-item.completed .stepper-circle { background: #16a34a; color: white; }
+        .stepper-item .stepper-circle { background: #e5e7eb; color: #6b7280; }
+        .stepper-line.completed { background: #16a34a; }
+        .stepper-line { background: #e5e7eb; }
+        .confidence-high { background: #16a34a; }
+        .confidence-medium { background: #eab308; }
+        .confidence-low { background: #dc2626; }
+        .drag-over { border-color: #2563eb !important; background: #eff6ff !important; }
+        .dragging { opacity: 0.5; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-50">
+        <div class="flex items-center justify-between max-w-7xl mx-auto">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">OE</div>
+                <div>
+                    <div class="font-semibold text-lg">ODIC Environmental</div>
+                    <div class="text-sm text-gray-500">ESA Report Assembly</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div id="ai-status" class="flex items-center gap-2 text-sm">
+                    <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                    <span class="text-gray-500">Checking AI...</span>
+                </div>
+                <select id="project-select" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" onchange="loadProject(this.value)">
+                    <option value="">Select Project...</option>
+                </select>
+                <button onclick="createNewProject()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+                    + New Project
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Pipeline Stepper -->
+    <div class="bg-gray-50 border-b border-gray-200 py-6">
+        <div class="max-w-5xl mx-auto">
+            <div class="flex items-center justify-between">
+                <div class="stepper-item flex flex-col items-center cursor-pointer" data-step="1" onclick="goToStep(1)">
+                    <div class="stepper-circle w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm mb-2">1</div>
+                    <span class="text-sm font-medium">Upload</span>
+                </div>
+                <div class="stepper-line flex-1 h-1 mx-2"></div>
+                <div class="stepper-item flex flex-col items-center cursor-pointer" data-step="2" onclick="goToStep(2)">
+                    <div class="stepper-circle w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm mb-2">2</div>
+                    <span class="text-sm font-medium">Classify</span>
+                </div>
+                <div class="stepper-line flex-1 h-1 mx-2"></div>
+                <div class="stepper-item flex flex-col items-center cursor-pointer" data-step="3" onclick="goToStep(3)">
+                    <div class="stepper-circle w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm mb-2">3</div>
+                    <span class="text-sm font-medium">Triage</span>
+                </div>
+                <div class="stepper-line flex-1 h-1 mx-2"></div>
+                <div class="stepper-item flex flex-col items-center cursor-pointer" data-step="4" onclick="goToStep(4)">
+                    <div class="stepper-circle w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm mb-2">4</div>
+                    <span class="text-sm font-medium">Assemble</span>
+                </div>
+                <div class="stepper-line flex-1 h-1 mx-2"></div>
+                <div class="stepper-item flex flex-col items-center cursor-pointer" data-step="5" onclick="goToStep(5)">
+                    <div class="stepper-circle w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm mb-2">5</div>
+                    <span class="text-sm font-medium">QC</span>
+                </div>
+                <div class="stepper-line flex-1 h-1 mx-2"></div>
+                <div class="stepper-item flex flex-col items-center cursor-pointer" data-step="6" onclick="goToStep(6)">
+                    <div class="stepper-circle w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm mb-2">6</div>
+                    <span class="text-sm font-medium">Export</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="max-w-6xl mx-auto py-8 px-6">
+        <!-- Step 1: Upload -->
+        <div id="step-1" class="step-panel">
+            <h2 class="text-2xl font-semibold mb-6">Upload Documents</h2>
+            <div id="upload-zone" class="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer"
+                 ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)" onclick="document.getElementById('file-input').click()">
+                <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                </svg>
+                <p class="text-lg font-medium text-gray-700 mb-2">Drop files here or click to browse</p>
+                <p class="text-sm text-gray-500">Supports: PDF, DOCX, DOC, JPG, PNG, TIFF</p>
+                <input type="file" id="file-input" class="hidden" multiple accept=".pdf,.docx,.doc,.jpg,.jpeg,.png,.tiff,.tif" onchange="handleFileSelect(event)">
+            </div>
+
+            <div id="upload-queue" class="mt-6 space-y-3"></div>
+
+            <div class="mt-6 flex justify-end">
+                <button onclick="goToStep(2)" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50" id="btn-to-classify" disabled>
+                    Continue to Classify →
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 2: Classify -->
+        <div id="step-2" class="step-panel hidden">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-semibold">Classify Documents</h2>
+                <button onclick="runClassification()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700" id="btn-classify">
+                    Run AI Classification
+                </button>
+            </div>
+
+            <div id="classification-status" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 hidden">
+                <div class="flex items-center gap-3">
+                    <div class="animate-spin w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                    <span class="text-blue-700">Classifying documents...</span>
+                </div>
+            </div>
+
+            <div id="classification-results" class="space-y-4"></div>
+
+            <div class="mt-6 flex justify-between">
+                <button onclick="goToStep(1)" class="text-gray-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100">← Back</button>
+                <button onclick="goToStep(3)" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700" id="btn-to-triage">
+                    Continue to Triage →
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 3: Triage -->
+        <div id="step-3" class="step-panel hidden">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-semibold">Triage Documents</h2>
+                <div class="flex gap-3">
+                    <button onclick="excludeThirdParty()" class="border border-gray-300 px-4 py-2 rounded-lg text-sm hover:bg-gray-50">
+                        Auto-exclude Third-party
+                    </button>
+                </div>
+            </div>
+
+            <!-- Triage Summary -->
+            <div class="grid grid-cols-4 gap-4 mb-6">
+                <div class="bg-gray-50 rounded-lg p-4 text-center">
+                    <div class="text-3xl font-bold text-gray-700" id="triage-total">0</div>
+                    <div class="text-sm text-gray-500">Total</div>
+                </div>
+                <div class="bg-green-50 rounded-lg p-4 text-center border border-green-200">
+                    <div class="text-3xl font-bold text-green-600" id="triage-included">0</div>
+                    <div class="text-sm text-gray-500">Included</div>
+                </div>
+                <div class="bg-red-50 rounded-lg p-4 text-center border border-red-200">
+                    <div class="text-3xl font-bold text-red-600" id="triage-excluded">0</div>
+                    <div class="text-sm text-gray-500">Excluded</div>
+                </div>
+                <div class="bg-yellow-50 rounded-lg p-4 text-center border border-yellow-200">
+                    <div class="text-3xl font-bold text-yellow-600" id="triage-review">0</div>
+                    <div class="text-sm text-gray-500">Needs Review</div>
+                </div>
+            </div>
+
+            <!-- Preview Panel + Table -->
+            <div class="flex gap-6">
+                <!-- Document Table -->
+                <div class="flex-1">
+                    <div class="border border-gray-200 rounded-lg overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="text-left px-4 py-3 font-medium text-gray-600 w-8"></th>
+                                    <th class="text-left px-4 py-3 font-medium text-gray-600">Document</th>
+                                    <th class="text-left px-4 py-3 font-medium text-gray-600">Type</th>
+                                    <th class="text-left px-4 py-3 font-medium text-gray-600">Confidence</th>
+                                    <th class="text-left px-4 py-3 font-medium text-gray-600">Entity</th>
+                                    <th class="text-left px-4 py-3 font-medium text-gray-600 w-20">Include</th>
+                                </tr>
+                            </thead>
+                            <tbody id="triage-table" class="divide-y divide-gray-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Preview Panel -->
+                <div class="w-80 border border-gray-200 rounded-lg p-4">
+                    <h3 class="font-medium mb-3">Document Preview</h3>
+                    <div id="preview-panel" class="text-sm text-gray-500">
+                        <p>Select a document to preview</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-between">
+                <button onclick="goToStep(2)" class="text-gray-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100">← Back</button>
+                <button onclick="confirmTriage()" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700">
+                    Confirm & Continue to Assemble →
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 4: Assemble -->
+        <div id="step-4" class="step-panel hidden">
+            <h2 class="text-2xl font-semibold mb-6">Assemble Report</h2>
+
+            <!-- Appendix Order (Drag-and-Drop) -->
+            <div class="mb-6">
+                <h3 class="font-medium mb-3">Document Order (drag to reorder)</h3>
+                <div id="appendix-order" class="space-y-2"></div>
+            </div>
+
+            <div class="flex justify-center mb-8">
+                <button onclick="runAssembly()" class="bg-green-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-green-700 text-lg" id="btn-assemble">
+                    Assemble Report
+                </button>
+            </div>
+
+            <div id="assembly-progress" class="hidden">
+                <div class="bg-gray-50 rounded-lg p-6">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                        <span class="text-lg font-medium" id="assembly-status-text">Assembling report...</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3">
+                        <div class="bg-blue-600 h-3 rounded-full transition-all" id="assembly-progress-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-between">
+                <button onclick="goToStep(3)" class="text-gray-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100">← Back</button>
+                <button onclick="goToStep(5)" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50" id="btn-to-qc" disabled>
+                    Continue to QC →
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 5: QC Check -->
+        <div id="step-5" class="step-panel hidden">
+            <h2 class="text-2xl font-semibold mb-6">Quality Control Check</h2>
+
+            <div id="qc-results" class="space-y-4">
+                <div class="text-gray-500">Run assembly first to see QC results.</div>
+            </div>
+
+            <div class="mt-6 flex justify-between">
+                <button onclick="goToStep(4)" class="text-gray-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100">← Back</button>
+                <button onclick="goToStep(6)" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700" id="btn-to-export">
+                    Continue to Export →
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 6: Export -->
+        <div id="step-6" class="step-panel hidden">
+            <h2 class="text-2xl font-semibold mb-6">Export Report</h2>
+
+            <div class="grid grid-cols-2 gap-6 mb-8">
+                <div class="border border-gray-200 rounded-lg p-6">
+                    <h3 class="font-medium text-lg mb-4">PDF Export</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Max file size (MB)</label>
+                            <input type="number" id="export-max-size" value="25" class="border border-gray-300 rounded-lg px-3 py-2 w-full">
+                        </div>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="export-split" checked class="rounded">
+                            <span class="text-sm">Split if exceeds size limit</span>
+                        </label>
+                        <button onclick="exportReport('pdf')" class="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700">
+                            Export as PDF
+                        </button>
+                    </div>
+                </div>
+
+                <div class="border border-gray-200 rounded-lg p-6">
+                    <h3 class="font-medium text-lg mb-4">Word Export</h3>
+                    <p class="text-sm text-gray-500 mb-4">Export as DOCX for manual editing.</p>
+                    <button onclick="exportReport('docx')" class="w-full bg-gray-700 text-white py-2 rounded-lg font-medium hover:bg-gray-800">
+                        Export as DOCX
+                    </button>
+                </div>
+            </div>
+
+            <div id="export-results" class="hidden">
+                <h3 class="font-medium mb-3">Export Complete</h3>
+                <div id="export-files" class="space-y-2"></div>
+            </div>
+
+            <div class="mt-6 flex justify-start">
+                <button onclick="goToStep(5)" class="text-gray-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100">← Back</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 space-y-2"></div>
+
+    <script>
+        // State
+        let currentStep = 1;
+        let currentProject = null;
+        let uploadedFiles = [];
+        let classificationResults = [];
+        let triageDecisions = {};
+        let documentOrder = [];
+
+        // API Base
+        const API_BASE = '';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAIStatus();
+            loadProjects();
+            updateStepper();
+        });
+
+        // Stepper Navigation
+        function goToStep(step) {
+            document.querySelectorAll('.step-panel').forEach(p => p.classList.add('hidden'));
+            document.getElementById(`step-${step}`).classList.remove('hidden');
+            currentStep = step;
+            updateStepper();
+        }
+
+        function updateStepper() {
+            document.querySelectorAll('.stepper-item').forEach((item, idx) => {
+                const stepNum = idx + 1;
+                const circle = item.querySelector('.stepper-circle');
+                item.classList.remove('active', 'completed');
+                if (stepNum < currentStep) {
+                    item.classList.add('completed');
+                    circle.innerHTML = '✓';
+                } else if (stepNum === currentStep) {
+                    item.classList.add('active');
+                    circle.innerHTML = stepNum;
+                } else {
+                    circle.innerHTML = stepNum;
+                }
+            });
+            document.querySelectorAll('.stepper-line').forEach((line, idx) => {
+                if (idx < currentStep - 1) {
+                    line.classList.add('completed');
+                } else {
+                    line.classList.remove('completed');
+                }
+            });
+        }
+
+        // AI Status
+        async function checkAIStatus() {
+            try {
+                const res = await fetch(`${API_BASE}/api/ai/status`);
+                const data = await res.json();
+                const statusEl = document.getElementById('ai-status');
+                if (data.configured) {
+                    statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-green-600">AI Connected (${data.model})</span>`;
+                } else {
+                    statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-red-600">AI Not Connected</span>`;
+                }
+            } catch (e) {
+                console.error('AI status check failed:', e);
+            }
+        }
+
+        // Projects
+        async function loadProjects() {
+            try {
+                const res = await fetch(`${API_BASE}/api/projects`);
+                const data = await res.json();
+                const select = document.getElementById('project-select');
+                select.innerHTML = '<option value="">Select Project...</option>';
+                data.projects.forEach(p => {
+                    select.innerHTML += `<option value="${p.id}">${p.id} (${p.document_count} docs)</option>`;
+                });
+            } catch (e) {
+                console.error('Failed to load projects:', e);
+            }
+        }
+
+        async function loadProject(projectId) {
+            if (!projectId) return;
+            currentProject = projectId;
+            try {
+                const res = await fetch(`${API_BASE}/api/projects/${projectId}`);
+                const data = await res.json();
+                // Load triage status
+                const triageRes = await fetch(`${API_BASE}/api/projects/${projectId}/triage`);
+                const triageData = await triageRes.json();
+                classificationResults = triageData.documents || [];
+                renderTriageTable();
+                renderAppendixOrder();
+                showToast('Project loaded', 'success');
+            } catch (e) {
+                showToast('Failed to load project', 'error');
+            }
+        }
+
+        function createNewProject() {
+            const name = prompt('Enter project ID (e.g., ODIC-2024-001):');
+            if (name) {
+                currentProject = name;
+                document.getElementById('project-select').innerHTML += `<option value="${name}" selected>${name}</option>`;
+                showToast(`Project ${name} created`, 'success');
+            }
+        }
+
+        // File Upload
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+            const files = Array.from(e.dataTransfer.files);
+            processFiles(files);
+        }
+
+        function handleFileSelect(e) {
+            const files = Array.from(e.target.files);
+            processFiles(files);
+        }
+
+        async function processFiles(files) {
+            for (const file of files) {
+                const queueItem = addToUploadQueue(file);
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    const res = await fetch(`${API_BASE}/api/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        updateQueueItem(queueItem.id, 'success', data);
+                        uploadedFiles.push(data);
+                    } else {
+                        updateQueueItem(queueItem.id, 'error', data.error);
+                    }
+                } catch (e) {
+                    updateQueueItem(queueItem.id, 'error', e.message);
+                }
+            }
+            document.getElementById('btn-to-classify').disabled = uploadedFiles.length === 0;
+        }
+
+        function addToUploadQueue(file) {
+            const id = Date.now() + Math.random();
+            const queue = document.getElementById('upload-queue');
+            queue.innerHTML += `
+                <div id="upload-${id}" class="flex items-center justify-between bg-gray-50 rounded-lg p-4">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <div>
+                            <div class="font-medium">${file.name}</div>
+                            <div class="text-sm text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                        </div>
+                    </div>
+                    <div id="upload-status-${id}" class="text-sm text-gray-500">Uploading...</div>
+                </div>
+            `;
+            return { id };
+        }
+
+        function updateQueueItem(id, status, data) {
+            const statusEl = document.getElementById(`upload-status-${id}`);
+            if (status === 'success') {
+                statusEl.innerHTML = `<span class="text-green-600">✓ Uploaded${data.converted ? ' (converted)' : ''}</span>`;
+            } else {
+                statusEl.innerHTML = `<span class="text-red-600">✗ ${data}</span>`;
+            }
+        }
+
+        // Classification
+        async function runClassification() {
+            document.getElementById('classification-status').classList.remove('hidden');
+            document.getElementById('btn-classify').disabled = true;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/classify`, { method: 'POST' });
+                const data = await res.json();
+
+                // Poll for results
+                await pollClassification();
+            } catch (e) {
+                showToast('Classification failed', 'error');
+            }
+
+            document.getElementById('classification-status').classList.add('hidden');
+            document.getElementById('btn-classify').disabled = false;
+        }
+
+        async function pollClassification() {
+            for (let i = 0; i < 30; i++) {
+                await new Promise(r => setTimeout(r, 2000));
+                const res = await fetch(`${API_BASE}/api/classifications`);
+                const data = await res.json();
+                classificationResults = data.results || [];
+                renderClassificationResults();
+
+                const pending = classificationResults.filter(r => r.status === 'processing').length;
+                if (pending === 0) break;
+            }
+        }
+
+        function renderClassificationResults() {
+            const container = document.getElementById('classification-results');
+            if (classificationResults.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">No classification results yet. Upload files and run classification.</p>';
+                return;
+            }
+
+            container.innerHTML = classificationResults.map(r => {
+                const confClass = r.confidence >= 0.9 ? 'confidence-high' : r.confidence >= 0.7 ? 'confidence-medium' : 'confidence-low';
+                const confPct = Math.round(r.confidence * 100);
+                return `
+                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-medium">${r.filename}</span>
+                            <span class="text-sm px-2 py-1 bg-gray-200 rounded">${r.type}</span>
+                        </div>
+                        <div class="flex items-center gap-4 text-sm">
+                            <div class="flex items-center gap-2">
+                                <span class="text-gray-500">Confidence:</span>
+                                <div class="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div class="${confClass} h-full rounded-full" style="width: ${confPct}%"></div>
+                                </div>
+                                <span class="${confPct >= 90 ? 'text-green-600' : confPct >= 70 ? 'text-yellow-600' : 'text-red-600'}">${confPct}%</span>
+                            </div>
+                            ${r.entity_detected ? `<span class="text-gray-500">Entity: <strong>${r.entity_detected}</strong></span>` : ''}
+                            ${!r.belongs_to_current_project ? '<span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs">Third-party</span>' : ''}
+                        </div>
+                        ${r.reasoning ? `<p class="text-sm text-gray-500 mt-2">${r.reasoning}</p>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Triage
+        function renderTriageTable() {
+            const tbody = document.getElementById('triage-table');
+            if (classificationResults.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No documents to triage</td></tr>';
+                return;
+            }
+
+            let included = 0, excluded = 0, review = 0;
+
+            tbody.innerHTML = classificationResults.map((r, idx) => {
+                const decision = triageDecisions[r.id] || { include: r.confidence >= 0.7 && r.belongs_to_current_project !== false };
+                if (decision.include) included++; else excluded++;
+                if (r.confidence < 0.7 || r.requires_manual_review) review++;
+
+                const confClass = r.confidence >= 0.9 ? 'confidence-high' : r.confidence >= 0.7 ? 'confidence-medium' : 'confidence-low';
+                const confPct = Math.round((r.confidence || 0) * 100);
+
+                return `
+                    <tr class="hover:bg-gray-50 cursor-pointer ${!decision.include ? 'opacity-50' : ''}" onclick="selectDocument('${r.id}')" draggable="true" data-id="${r.id}">
+                        <td class="px-4 py-3">
+                            <svg class="w-4 h-4 text-gray-400 cursor-grab" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/>
+                                <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
+                                <circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/>
+                            </svg>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="font-medium">${r.filename || r.name}</div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <select class="border border-gray-300 rounded px-2 py-1 text-sm" onchange="updateDocType('${r.id}', this.value)">
+                                <option value="executive_summary" ${r.type === 'executive_summary' ? 'selected' : ''}>Executive Summary</option>
+                                <option value="appendix_a" ${r.type === 'appendix_a' ? 'selected' : ''}>Appendix A</option>
+                                <option value="appendix_b" ${r.type === 'appendix_b' ? 'selected' : ''}>Appendix B</option>
+                                <option value="appendix_c" ${r.type === 'appendix_c' ? 'selected' : ''}>Appendix C</option>
+                                <option value="appendix_d" ${r.type === 'appendix_d' ? 'selected' : ''}>Appendix D</option>
+                                <option value="appendix_e" ${r.type === 'appendix_e' ? 'selected' : ''}>Appendix E</option>
+                                <option value="appendix_f" ${r.type === 'appendix_f' ? 'selected' : ''}>Appendix F</option>
+                                <option value="sanborn_map" ${r.type === 'sanborn_map' ? 'selected' : ''}>Sanborn Map</option>
+                                <option value="city_directory" ${r.type === 'city_directory' ? 'selected' : ''}>City Directory</option>
+                                <option value="photo" ${r.type === 'photo' || r.type === 'site_photograph' ? 'selected' : ''}>Photo</option>
+                                <option value="third_party_reference" ${r.type === 'third_party_reference' || r.type === 'reference_report' ? 'selected' : ''}>Third-party Reference</option>
+                                <option value="regulatory_record" ${r.type === 'regulatory_record' || r.type === 'regulatory_correspondence' ? 'selected' : ''}>Regulatory Record</option>
+                                <option value="unknown" ${r.type === 'unknown' || r.type === 'other' ? 'selected' : ''}>Unknown</option>
+                            </select>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-2">
+                                <div class="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div class="${confClass} h-full rounded-full" style="width: ${confPct}%"></div>
+                                </div>
+                                <span class="text-sm ${confPct >= 90 ? 'text-green-600' : confPct >= 70 ? 'text-yellow-600' : 'text-red-600'}">${confPct}</span>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-sm">
+                            ${r.entity_detected || '-'}
+                            ${r.belongs_to_current_project === false ? '<span class="ml-1 bg-purple-100 text-purple-700 px-1 rounded text-xs">3rd</span>' : ''}
+                        </td>
+                        <td class="px-4 py-3">
+                            <input type="checkbox" ${decision.include ? 'checked' : ''} onchange="toggleInclude('${r.id}', this.checked)" class="w-5 h-5 rounded border-gray-300">
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('triage-total').textContent = classificationResults.length;
+            document.getElementById('triage-included').textContent = included;
+            document.getElementById('triage-excluded').textContent = excluded;
+            document.getElementById('triage-review').textContent = review;
+
+            // Add drag-drop handlers
+            initDragDrop();
+        }
+
+        function selectDocument(id) {
+            const doc = classificationResults.find(r => r.id === id);
+            if (!doc) return;
+            const panel = document.getElementById('preview-panel');
+            panel.innerHTML = `
+                <div class="space-y-3">
+                    <div><strong>File:</strong> ${doc.filename || doc.name}</div>
+                    <div><strong>Type:</strong> ${doc.type}</div>
+                    <div><strong>Confidence:</strong> ${Math.round((doc.confidence || 0) * 100)}%</div>
+                    <div><strong>Entity:</strong> ${doc.entity_detected || 'N/A'}</div>
+                    <div><strong>Own project:</strong> ${doc.belongs_to_current_project !== false ? 'Yes' : 'No'}</div>
+                    ${doc.ai_notes ? `<div><strong>AI Notes:</strong> ${doc.ai_notes}</div>` : ''}
+                </div>
+            `;
+        }
+
+        function toggleInclude(id, checked) {
+            triageDecisions[id] = triageDecisions[id] || {};
+            triageDecisions[id].include = checked;
+            renderTriageTable();
+        }
+
+        function updateDocType(id, type) {
+            const doc = classificationResults.find(r => r.id === id);
+            if (doc) doc.type = type;
+        }
+
+        function excludeThirdParty() {
+            classificationResults.forEach(r => {
+                if (r.belongs_to_current_project === false || r.type === 'reference_report' || r.type === 'third_party_reference') {
+                    triageDecisions[r.id] = { include: false, reason: 'Auto-excluded third-party' };
+                }
+            });
+            renderTriageTable();
+            showToast('Third-party documents excluded', 'success');
+        }
+
+        async function confirmTriage() {
+            if (!currentProject) {
+                showToast('Please select or create a project first', 'error');
+                return;
+            }
+
+            const docs = classificationResults.map(r => ({
+                document_id: r.id,
+                include: triageDecisions[r.id]?.include ?? true,
+                document_type: r.type
+            }));
+
+            try {
+                await fetch(`${API_BASE}/api/projects/${currentProject}/triage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ documents: docs, confirmed: true })
+                });
+                goToStep(4);
+            } catch (e) {
+                showToast('Failed to save triage', 'error');
+            }
+        }
+
+        // Drag and Drop for reordering
+        function initDragDrop() {
+            const rows = document.querySelectorAll('#triage-table tr[draggable]');
+            rows.forEach(row => {
+                row.addEventListener('dragstart', handleRowDragStart);
+                row.addEventListener('dragover', handleRowDragOver);
+                row.addEventListener('dragleave', handleRowDragLeave);
+                row.addEventListener('drop', handleRowDrop);
+                row.addEventListener('dragend', handleRowDragEnd);
+            });
+        }
+
+        let dragSrcEl = null;
+
+        function handleRowDragStart(e) {
+            dragSrcEl = this;
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', this.dataset.id);
+        }
+
+        function handleRowDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            this.classList.add('drag-over');
+        }
+
+        function handleRowDragLeave(e) {
+            this.classList.remove('drag-over');
+        }
+
+        function handleRowDrop(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            if (dragSrcEl !== this) {
+                const srcId = e.dataTransfer.getData('text/plain');
+                const destId = this.dataset.id;
+                // Reorder in classificationResults
+                const srcIdx = classificationResults.findIndex(r => r.id === srcId);
+                const destIdx = classificationResults.findIndex(r => r.id === destId);
+                if (srcIdx > -1 && destIdx > -1) {
+                    const [removed] = classificationResults.splice(srcIdx, 1);
+                    classificationResults.splice(destIdx, 0, removed);
+                    renderTriageTable();
+                    renderAppendixOrder();
+                }
+            }
+        }
+
+        function handleRowDragEnd(e) {
+            this.classList.remove('dragging');
+            document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        }
+
+        // Appendix Order
+        function renderAppendixOrder() {
+            const container = document.getElementById('appendix-order');
+            const included = classificationResults.filter(r => triageDecisions[r.id]?.include !== false);
+
+            container.innerHTML = included.map((r, idx) => `
+                <div class="flex items-center gap-3 bg-gray-50 rounded-lg p-3 border border-gray-200" draggable="true" data-id="${r.id}">
+                    <svg class="w-4 h-4 text-gray-400 cursor-grab" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/>
+                        <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
+                        <circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/>
+                    </svg>
+                    <span class="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-medium text-sm">${idx + 1}</span>
+                    <span class="font-medium">${r.filename || r.name}</span>
+                    <span class="text-sm text-gray-500">${r.type}</span>
+                </div>
+            `).join('');
+        }
+
+        // Assembly
+        async function runAssembly() {
+            if (!currentProject) {
+                showToast('Please select a project first', 'error');
+                return;
+            }
+
+            document.getElementById('assembly-progress').classList.remove('hidden');
+            document.getElementById('btn-assemble').disabled = true;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/assemble/${currentProject}?skip_triage=true`, { method: 'POST' });
+                const data = await res.json();
+
+                if (data.success) {
+                    pollAssemblyStatus();
+                } else {
+                    showToast(data.error || 'Assembly failed', 'error');
+                    document.getElementById('assembly-progress').classList.add('hidden');
+                    document.getElementById('btn-assemble').disabled = false;
+                }
+            } catch (e) {
+                showToast('Assembly failed', 'error');
+                document.getElementById('assembly-progress').classList.add('hidden');
+                document.getElementById('btn-assemble').disabled = false;
+            }
+        }
+
+        async function pollAssemblyStatus() {
+            for (let i = 0; i < 60; i++) {
+                await new Promise(r => setTimeout(r, 2000));
+                const res = await fetch(`${API_BASE}/api/assemble/${currentProject}/status`);
+                const data = await res.json();
+
+                document.getElementById('assembly-status-text').textContent = data.message || 'Assembling...';
+                document.getElementById('assembly-progress-bar').style.width = `${data.progress || 0}%`;
+
+                if (data.status === 'complete') {
+                    showToast('Assembly complete!', 'success');
+                    document.getElementById('btn-to-qc').disabled = false;
+                    loadQCResults();
+                    break;
+                } else if (data.status === 'failed') {
+                    showToast(data.error || 'Assembly failed', 'error');
+                    break;
+                }
+            }
+
+            document.getElementById('btn-assemble').disabled = false;
+        }
+
+        // QC
+        async function loadQCResults() {
+            if (!currentProject) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/projects/${currentProject}`);
+                const data = await res.json();
+
+                const container = document.getElementById('qc-results');
+                if (data.qa_result) {
+                    const qa = data.qa_result;
+                    container.innerHTML = `
+                        <div class="bg-${qa.passed ? 'green' : 'red'}-50 border border-${qa.passed ? 'green' : 'red'}-200 rounded-lg p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <span class="text-3xl">${qa.passed ? '✅' : '❌'}</span>
+                                <div>
+                                    <h3 class="text-xl font-semibold">${qa.passed ? 'QC Passed' : 'QC Failed'}</h3>
+                                    <p class="text-gray-600">Score: ${qa.score}%</p>
+                                </div>
+                            </div>
+                            ${qa.issues?.length ? `
+                                <div class="mb-4">
+                                    <h4 class="font-medium mb-2">Issues:</h4>
+                                    <ul class="list-disc list-inside text-sm text-red-700">
+                                        ${qa.issues.map(i => `<li>${i}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                            ${qa.warnings?.length ? `
+                                <div class="mb-4">
+                                    <h4 class="font-medium mb-2">Warnings:</h4>
+                                    <ul class="list-disc list-inside text-sm text-yellow-700">
+                                        ${qa.warnings.map(w => `<li>${w}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                            ${qa.contamination_issues?.length ? `
+                                <div>
+                                    <h4 class="font-medium mb-2">Third-party Contamination Check:</h4>
+                                    <ul class="list-disc list-inside text-sm text-purple-700">
+                                        ${qa.contamination_issues.map(c => `<li>${c.document}: ${c.description}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = '<p class="text-gray-500">No QC results available.</p>';
+                }
+            } catch (e) {
+                console.error('Failed to load QC results:', e);
+            }
+        }
+
+        // Export
+        async function exportReport(format) {
+            if (!currentProject) {
+                showToast('Please select a project first', 'error');
+                return;
+            }
+
+            const maxSize = parseFloat(document.getElementById('export-max-size').value) || 25;
+            const split = document.getElementById('export-split').checked;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/projects/${currentProject}/export`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ format, max_size_mb: maxSize, split_if_needed: split })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    document.getElementById('export-results').classList.remove('hidden');
+                    const filesDiv = document.getElementById('export-files');
+                    filesDiv.innerHTML = data.files.map(f => `
+                        <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3 border border-gray-200">
+                            <div>
+                                <span class="font-medium">${f.path.split('/').pop()}</span>
+                                <span class="text-sm text-gray-500 ml-2">${f.size_mb} MB${f.part ? ` (Part ${f.part})` : ''}</span>
+                            </div>
+                            <a href="${API_BASE}/api/download/${currentProject}/report" class="text-blue-600 hover:underline text-sm">Download</a>
+                        </div>
+                    `).join('');
+                    showToast(`Export complete: ${data.files.length} file(s)`, 'success');
+                } else {
+                    showToast(data.error || 'Export failed', 'error');
+                }
+            } catch (e) {
+                showToast('Export failed', 'error');
+            }
+        }
+
+        // Toast
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600';
+            toast.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-lg animate-pulse`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,445 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Document Type Definitions — ODIC Environmental
+#
+# These are hints for the AI classifier, NOT rigid rules.
+# The classifier reads document content and uses these as guidance.
+#
+# Updated to match real ODIC report structure from reference PDFs.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+document_types:
+
+  # ─── Front Matter ──────────────────────────────────────────────────────────
+
+  - id: cover_page
+    label: "Cover Page"
+    description: "ODIC-branded title page with property address, project number, date, and client info"
+    visual_hints:
+      - "Centered text layout"
+      - "PHASE I ENVIRONMENTAL SITE ASSESSMENT in large text"
+      - "Subject Property Address prominently displayed"
+      - "ODIC Environmental footer with dark line"
+    text_hints:
+      - "PHASE I ENVIRONMENTAL SITE ASSESSMENT"
+      - "Subject Property Address"
+      - "Odic Project Number"
+      - "Report Date"
+      - "Prepared for"
+      - "Odic Environmental"
+    default_section: "front_cover"
+
+  - id: transmittal_letter
+    label: "Transmittal Letter"
+    description: "ODIC letterhead cover letter to client transmitting the report"
+    visual_hints:
+      - "ODIC Environmental letterhead at top"
+      - "Letter format with date, addressee, salutation"
+      - "Signature block at bottom"
+      - "1-2 pages maximum"
+    text_hints:
+      - "Attached please find"
+      - "Phase I Environmental Site Assessment"
+      - "the Report"
+      - "Odic Environmental"
+      - "407 W. Imperial Hwy"
+      - "213.380.0090"
+    default_section: "front_transmittal"
+
+  - id: reliance_letter
+    label: "Reliance Letter (SBA)"
+    description: "SBA SOP 50 10 8 reliance letter addressed to lender"
+    visual_hints:
+      - "ODIC letterhead"
+      - "Formal letter format addressed to a bank or lender"
+      - "References SOP 50 10 8"
+    text_hints:
+      - "SOP 50 10 8"
+      - "RELIANCE LETTER"
+      - "Lender"
+      - "Southland EDC"
+      - "First Citizens Bank"
+      - "Environmental Investigation"
+    default_section: "front_reliance"
+
+  - id: insurance_certificate
+    label: "E&O Insurance Certificate"
+    description: "ACORD form certificate of liability insurance"
+    visual_hints:
+      - "Standard ACORD insurance form layout"
+      - "Table grid with policy numbers and coverage amounts"
+      - "ACORD logo or branding"
+      - "Multiple insurance company listings"
+    text_hints:
+      - "CERTIFICATE OF LIABILITY INSURANCE"
+      - "ACORD"
+      - "INSURER"
+      - "COVERAGE"
+      - "POLICY NUMBER"
+      - "ODIC Environmental"
+      - "Hartford"
+      - "Westchester"
+    default_section: "front_insurance"
+
+  - id: ep_declaration
+    label: "EP Declaration"
+    description: "Environmental Professional declaration of qualifications per 40 CFR 312"
+    visual_hints:
+      - "Short declaration statement (typically 1 page or less)"
+      - "May include signature"
+    text_hints:
+      - "Environmental Professional"
+      - "40 CFR 312"
+      - "definition of an Environmental Professional"
+      - "education, training, and experience"
+      - "undersigned"
+    default_section: "front_ep_declaration"
+
+  # ─── Appendix Content ─────────────────────────────────────────────────────
+
+  - id: location_map
+    label: "Location Map (Figure 1)"
+    description: "Site location map showing property in regional context"
+    visual_hints:
+      - "Map showing property location with surrounding streets"
+      - "FIGURE 1 label"
+      - "North arrow and scale"
+      - "ODIC Environmental footer with address"
+    text_hints:
+      - "FIGURE 1"
+      - "Site Location Map"
+      - "No Scale"
+      - "ODICEnvironmental"
+    default_section: "appendix_a_maps"
+
+  - id: plot_plan
+    label: "Plot Plan (Figure 2)"
+    description: "Property plot plan showing building layout and groundwater flow"
+    visual_hints:
+      - "Detailed property boundary drawing"
+      - "FIGURE 2 label"
+      - "Building footprints and labeled areas"
+      - "Estimated groundwater flow arrow"
+      - "North arrow"
+    text_hints:
+      - "FIGURE 2"
+      - "Site Plot Plan"
+      - "Estimated Groundwater Flow"
+      - "SITE ADDRESS"
+    default_section: "appendix_a_maps"
+
+  - id: site_photograph
+    label: "Site Photograph"
+    description: "Current condition photos from field inspection"
+    visual_hints:
+      - "Ground-level photographs of property"
+      - "Grid layout: typically 2x3 (6 photos per page)"
+      - "Captions below each photo describing view direction"
+      - "Odic Environmental header on page"
+    text_hints:
+      - "View of Property"
+      - "camera facing"
+      - "Interior view"
+      - "adjacent property"
+      - "Odic Environmental"
+    default_section: "appendix_b_photographs"
+
+  - id: edr_report
+    label: "EDR Radius Map Report"
+    description: "Environmental Data Resources regulatory database search results. Typically 1000-3000+ pages."
+    visual_hints:
+      - "Dense tabular data with site listings"
+      - "Map with regulatory site markers (letters/numbers)"
+      - "EDR branding and disclaimers"
+      - "Executive Summary pages with distance tables"
+      - "MAP FINDINGS headers"
+    text_hints:
+      - "Environmental Data Resources"
+      - "EDR"
+      - "Radius Map Report"
+      - "TC8"
+      - "MAP FINDINGS"
+      - "EXECUTIVE SUMMARY"
+      - "PageMap ID"
+      - "RCRA"
+      - "LUST"
+      - "CERCLIS"
+      - "GeoCheck"
+      - "Lightbox"
+    typical_date_range: "current"
+    default_section: "appendix_c_database_report"
+
+  - id: sanborn_map
+    label: "Sanborn Fire Insurance Map"
+    description: "Historical fire insurance maps created by the Sanborn Map Company"
+    visual_hints:
+      - "Often yellowed or aged paper"
+      - "Hand-drawn building footprints with color coding"
+      - "Street grid with lot numbers"
+      - "Sanborn branding or copyright text"
+      - "Building construction materials coded by color (pink=brick, yellow=wood)"
+    text_hints:
+      - "Sanborn"
+      - "Fire Insurance Map"
+      - "Vol. and Sheet numbers"
+    typical_date_range: "1867-1970"
+    default_section: "appendix_d_historical"
+
+  - id: aerial_photograph
+    label: "Aerial Photograph"
+    description: "Overhead imagery of the property, usually historical"
+    visual_hints:
+      - "Bird's eye view of land and buildings"
+      - "May be black and white (older) or color"
+      - "Often has date stamp or flight information"
+      - "Shows property boundaries, roads, vegetation from above"
+    text_hints:
+      - "Aerial"
+      - "aerial photograph"
+      - "Flight date or year"
+      - "NETR (Nationwide Environmental Title Research)"
+    typical_date_range: "1940-present"
+    default_section: "appendix_d_historical"
+
+  - id: topographic_map
+    label: "Topographic Map"
+    description: "USGS topographic survey maps showing elevation contours"
+    visual_hints:
+      - "Elevation contour lines (brown)"
+      - "Blue water features"
+      - "Green vegetation areas"
+      - "USGS branding or quadrangle name"
+      - "Scale bar and coordinate grid"
+    text_hints:
+      - "United States Geological Survey"
+      - "USGS"
+      - "Quadrangle"
+      - "Contour interval"
+    typical_date_range: "1890-present"
+    default_section: "appendix_d_historical"
+
+  - id: city_directory
+    label: "City Directory"
+    description: "Historical business and resident listings for a city"
+    visual_hints:
+      - "Dense text columns with names and addresses"
+      - "Alphabetical listings"
+      - "May look like old phone book pages"
+    text_hints:
+      - "City Directory"
+      - "Polk"
+      - "Haines"
+      - "Alphabetical name listings with addresses"
+    typical_date_range: "1870-1990"
+    default_section: "appendix_d_historical"
+
+  - id: fire_insurance_map
+    label: "Fire Insurance Map (Non-Sanborn)"
+    description: "Fire insurance maps from providers other than Sanborn"
+    visual_hints:
+      - "Similar to Sanborn but different branding"
+      - "Building footprints with construction details"
+    text_hints:
+      - "Insurance"
+      - "Map"
+      - "Non-Sanborn publisher names"
+    typical_date_range: "1870-1950"
+    default_section: "appendix_d_historical"
+
+  - id: agency_records
+    label: "Public Agency Records"
+    description: "FOIA responses, permits, inspection reports from government agencies"
+    text_hints:
+      - "Freedom of Information"
+      - "FOIA"
+      - "Department of"
+      - "Agency"
+      - "Permit"
+      - "Inspection Report"
+    default_section: "appendix_e_agency_records"
+
+  - id: ep_qualifications
+    label: "EP Qualifications / Resume"
+    description: "Environmental Professional resume, CV, or qualifications statement"
+    visual_hints:
+      - "Resume/CV format with education, experience, certifications"
+      - "ODIC Environmental branding"
+      - "Professional designation listings"
+    text_hints:
+      - "EDUCATION"
+      - "YEARS EXPERIENCE"
+      - "PROFESSIONAL DESIGNATION"
+      - "Registered Environmental Property Assessor"
+      - "Professional Civil Engineer"
+      - "CONSULTANT"
+      - "MANAGING DIRECTOR"
+      - "PROJECT MANAGER"
+    default_section: "appendix_f_qualifications"
+
+  # ─── Supplemental Documents ────────────────────────────────────────────────
+
+  - id: title_record
+    label: "Title Record"
+    description: "Property ownership and transfer history"
+    text_hints:
+      - "Title"
+      - "Deed"
+      - "Grantor"
+      - "Grantee"
+      - "Recording number"
+      - "County recorder"
+    default_section: "appendix_e_agency_records"
+
+  - id: tax_record
+    label: "Tax Record"
+    description: "Property tax assessments and records"
+    text_hints:
+      - "Assessor"
+      - "Tax"
+      - "Parcel"
+      - "APN"
+    default_section: "appendix_e_agency_records"
+
+  - id: building_permit
+    label: "Building Permit"
+    description: "Construction or renovation permits"
+    text_hints:
+      - "Building Permit"
+      - "Construction"
+      - "Department of Building"
+      - "Permit Number"
+    default_section: "appendix_e_agency_records"
+
+  - id: prior_environmental_report
+    label: "Prior Environmental Report"
+    description: "Previous Phase I, Phase II, remediation, or other environmental reports"
+    text_hints:
+      - "Phase I"
+      - "Phase II"
+      - "Environmental Site Assessment"
+      - "Remediation"
+      - "Subsurface Investigation"
+    default_section: "appendix_e_agency_records"
+
+  - id: client_correspondence
+    label: "Client Correspondence"
+    description: "Emails and letters from the client"
+    text_hints:
+      - "Email headers (From, To, Subject, Date)"
+      - "Letter formatting"
+      - "Client company name"
+    default_section: "appendix_e_agency_records"
+
+  - id: lab_result
+    label: "Laboratory Results"
+    description: "Analytical laboratory results for soil, water, or air samples"
+    text_hints:
+      - "Laboratory"
+      - "Sample Results"
+      - "Chain of Custody"
+      - "Chemical compound names and concentrations"
+      - "mg/kg"
+      - "ug/L"
+    default_section: "appendix_g_lab_results"
+
+  - id: boring_log
+    label: "Boring Log / Well Log"
+    description: "Subsurface boring or well installation logs"
+    visual_hints:
+      - "Columnar format with depth increments"
+      - "Soil descriptions at different depths"
+      - "Well construction diagrams"
+    text_hints:
+      - "Boring Log"
+      - "Well Log"
+      - "Depth"
+      - "Soil Description"
+      - "BGS"
+      - "feet below ground surface"
+    default_section: "appendix_h_boring_logs"
+
+  - id: regulatory_correspondence
+    label: "Regulatory Correspondence"
+    description: "Letters and communications from environmental agencies"
+    text_hints:
+      - "EPA"
+      - "DTSC"
+      - "RWQCB"
+      - "Department of Environmental"
+      - "Notice of Violation"
+      - "No Further Action"
+      - "Case Number"
+    default_section: "appendix_e_agency_records"
+
+  - id: supporting_document
+    label: "Supporting Document"
+    description: "Catch-all for documents that support the report but do not fit other categories"
+    default_section: "appendix_i_additional"
+
+  # ─── Report Body ───────────────────────────────────────────────────────────
+
+  - id: report_body
+    label: "Report Body"
+    description: "Main Phase I ESA narrative content (sections 1.0 through 7.0)"
+    text_hints:
+      - "Phase I Environmental Site Assessment Report"
+      - "Project No."
+      - "ODIC Environmental"
+      - "1.0 INTRODUCTION"
+      - "2.0 PROPERTY DESCRIPTION"
+      - "ASTM Standard Practice E1527-21"
+    default_section: "body_introduction"
+
+  - id: executive_summary
+    label: "Executive Summary"
+    description: "Executive summary section of the report"
+    text_hints:
+      - "EXECUTIVE SUMMARY"
+      - "ODIC Environmental"
+      - "performed a Phase I Environmental Site Assessment"
+      - "hereinafter referred to as"
+    default_section: "body_executive_summary"
+
+  - id: findings_recommendations
+    label: "Findings & Recommendations"
+    description: "Findings and recommendations section of the report"
+    text_hints:
+      - "FINDINGS AND RECOMMENDATIONS"
+      - "SUMMARY OF FINDINGS"
+      - "CONCLUSIONS AND FINDINGS"
+      - "RECOMMENDATIONS AND OPINIONS"
+    default_section: "body_findings_recommendations"
+
+  # ─── Structural ────────────────────────────────────────────────────────────
+
+  - id: appendix_divider
+    label: "Appendix Divider Page"
+    description: "Generated separator page between appendices"
+    visual_hints:
+      - "Mostly blank page with centered text"
+      - "APPENDIX X in large text"
+      - "Subtitle in small caps below"
+      - "Odic Environmental header"
+    text_hints:
+      - "APPENDIX"
+      - "Odic Environmental"
+    default_section: "appendix_a_maps"
+
+  - id: blank_page
+    label: "Blank Page"
+    description: "Empty or nearly empty page"
+    visual_hints:
+      - "Completely white or empty page"
+      - "No visible text or images"
+    text_hints: []
+    default_section: "appendix_i_additional"
+
+  - id: other_unknown
+    label: "Other / Unknown"
+    description: "Document that does not match any known type — flag for manual review"
+    default_section: "appendix_i_additional"
+
+# Confidence thresholds for the AI classifier
+thresholds:
+  auto_classify: 0.85
+  needs_review: 0.70
+  reject: 0.30
