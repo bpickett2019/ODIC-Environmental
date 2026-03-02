@@ -1,317 +1,368 @@
-# ODIC ESA Report Automation Pipeline — Build Prompt
+# CLAUDE.md
 
-## Context
-You are building an automated document processing pipeline for an environmental consulting company (ODIC Environmental) that produces Phase I Environmental Site Assessments (ESAs). The system watches an FTP server for incoming documents, classifies them, organizes them into project folders, and compiles them into final ESA reports following a standard template structure.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What This Is
+
+Environmental Report Assembler for ODIC Environmental. Automates Phase I ESA report assembly: upload documents, classify them into report sections, reorder, preview, assemble into a single PDF, and compress. A properly assembled report is typically 1,000–4,000 pages.
+
+## Running
+
+```bash
+# Backend (FastAPI on :8000)
+cd backend && python3 -m uvicorn main:app --port 8000 --reload
+
+# Frontend (Vite on :5173, proxies /api → :8000)
+cd frontend && npm run dev
+
+# Lint frontend
+cd frontend && npm run lint
+
+# Build frontend
+cd frontend && npm run build
+```
+
+Backend requires a `.env` file in `backend/` with `ANTHROPIC_API_KEY` if using Claude for classification. Default AI backend is Ollama (local, free).
 
 ## Architecture
-Lightweight daemon with a skill-based plugin system. Each processing step is a self-contained, swappable module with a standard interface. Inspired by OpenClaw's skill architecture but purpose-built — no external framework dependencies.
 
-### Design Principles
-- Each "skill" is a standalone module with a standard interface: `process(input) -> output`
-- Config-driven via YAML — the client's team can adjust settings without touching code
-- Daemon pattern — persistent background process watching for new work
-- Model routing by complexity (Haiku for cheap/fast, Sonnet for reasoning)
-- All skills are independently testable
+**Backend** (`backend/`): Single FastAPI app. All routes in `main.py`. No test infrastructure.
 
-## Tech Stack
-- **Language:** Python 3.11+
-- **FTP Monitoring:** paramiko (SFTP) or ftplib + watchdog for local mount
-- **LLM:** Anthropic Claude API (claude-haiku-4-5-20251001 for classification, claude-sonnet-4-5-20250929 for reasoning tasks)
-- **PDF Processing:** PyPDF2 for reading, ReportLab for assembly, pdfplumber for text extraction
-- **Config:** YAML (PyYAML)
-- **Logging:** Python logging with structured JSON output
-- **Queue:** Simple file-based queue or Redis if needed for scale
-- **API/UI (optional):** FastAPI for status endpoints
+- `main.py` — All API routes + upload/classification/assembly orchestration (~1300 lines)
+- `classifier.py` — Two-tier: regex filename matching (handles 98%+) → AI fallback (Ollama or Anthropic)
+- `assembler.py` — Merges PDFs with pypdf, groups by SectionCategory, sorts within sections
+- `converter.py` — Converts non-PDF formats to PDF (LibreOffice for docx/vsd, Pillow/ReportLab for images, sips for HEIC)
+- `compressor.py` — Ghostscript-based PDF compression with quality presets
+- `database.py` — SQLAlchemy ORM, SQLite. Two tables: `reports` and `documents`
+- `models.py` — Pydantic schemas and enums (SectionCategory, DocumentStatus, ReportStatus)
+- `config.py` — Pydantic Settings with all config (paths, AI backend, external tool paths, section order)
 
-## Project Structure
+**Frontend** (`frontend/`): React 18 + TypeScript + Vite + Tailwind 4 (via Vite plugin, no tailwind.config).
 
+- `App.tsx` — No router. State-based view switching.
+- `stores/reportStore.ts` — Single Zustand store for all app state
+- `api/client.ts` — Axios client + custom SSE stream consumer for POST-based Server-Sent Events
+- Components detailed in redesign section below
+
+**Data flow**: Frontend → axios → Vite proxy → FastAPI. Long operations use SSE via `fetch()` + `ReadableStream` (not EventSource, since they're POST requests).
+
+**File storage**: `uploads/{report_id}/originals/` (UUID-named), `uploads/{report_id}/pdfs/`, `uploads/{report_id}/output/` (assembled). All served via `FileResponse`.
+
+## External Tool Dependencies
+
+LibreOffice (`soffice`), Ghostscript (`gs`), Tesseract (`tesseract`) — must be installed on the system. macOS `sips` used for HEIC conversion.
+
+---
+
+## PRIORITY: Full Frontend Redesign
+
+The current UI is not user-friendly. It requires too many manual clicks (upload → click classify → wait → click assemble → wait → navigate to preview). The redesign makes it a **single-page, zero-manual-step experience**.
+
+### The Flow
+1. User drops a folder/zip → system **immediately** starts the full pipeline (convert → classify → deduplicate → detect compiled reports → assemble)
+2. Progress bar shows real-time status → "Converting 554 files... Classifying... Assembling..."
+3. When done → **full assembled PDF preview takes over the main area** with a sidebar showing report structure
+4. User reviews by scrolling through the assembled report. Sidebar highlights current section.
+5. If something is wrong → user expands a section in sidebar, reclassifies/removes/reorders docs
+6. After changes → "Re-assemble" button appears → one click → preview updates
+
+### What's Wrong Now
+- Left panel is cramped — filenames aren't visible, only file sizes show
+- Preview pane is empty and useless until you click individual docs
+- "AI Classify" and "Assemble Report" are separate manual buttons — should be automatic after upload
+- No assembled report preview on the main screen — it's the primary thing the user needs to see
+- Upload zone takes up prime screen real estate after files are uploaded
+- Section headers don't show full appendix labels
+- 6 documents in Cover/Write-Up including a 1,702-page compiled report that shouldn't be there (bugs listed below)
+
+### New Layout: Single-Page Dashboard
 ```
-odic-esa-pipeline/
-├── config/
-│   ├── config.yaml              # Main configuration
-│   ├── esa_template.yaml        # ESA report section structure/ordering
-│   └── document_types.yaml      # Document classification definitions
-├── skills/
-│   ├── base.py                  # Abstract base skill interface
-│   ├── ftp_watcher.py           # Monitors FTP for new files
-│   ├── document_classifier.py   # Classifies documents (Haiku)
-│   ├── file_organizer.py        # Renames and sorts into project folders
-│   ├── report_assembler.py      # Compiles final ESA PDF (Sonnet)
-│   ├── qa_checker.py            # Validates completeness (Sonnet)
-│   └── notifier.py              # Sends completion notifications
-├── core/
-│   ├── daemon.py                # Main daemon process
-│   ├── pipeline.py              # Orchestrates skill execution order
-│   ├── llm_router.py            # Routes to Haiku vs Sonnet based on task
-│   └── state.py                 # Tracks project/document state
-├── templates/
-│   └── phase1_esa/              # ESA report templates
-│       ├── cover_page.py
-│       ├── toc.py
-│       └── section_templates/
-├── tests/
-│   ├── test_classifier.py
-│   ├── test_assembler.py
-│   ├── test_qa.py
-│   └── fixtures/                # Sample PDFs for testing
-├── main.py                      # Entry point
-├── requirements.txt
-├── docker-compose.yaml          # For deployment
-├── Dockerfile
-└── README.md
+┌──────────────────────────────────────────────────────────────────┐
+│ HEADER: Project name (editable) | Status | Re-assemble | Download│
+├────────────────────────┬─────────────────────────────────────────┤
+│                        │                                         │
+│  SIDEBAR (380px)       │  MAIN AREA (flex-1)                    │
+│                        │                                         │
+│  [+ Add more files]    │  Before upload:                        │
+│                        │    Full-screen centered drop zone       │
+│  ┌─ Report TOC ─────┐ │                                         │
+│  │ Reliance Letter   │ │  During processing:                    │
+│  │ E&O Insurance     │ │    Progress overlay with file counts   │
+│  │ Cover / Write-Up  │ │                                         │
+│  │ APPENDIX A – Maps │ │  After assembly:                       │
+│  │ APPENDIX B – Phot │ │    FULL PDF PREVIEW of assembled report│
+│  │ APPENDIX C – Data │ │    (scrollable, zoomable iframe)       │
+│  │ APPENDIX D – Hist │ │                                         │
+│  │ APPENDIX E – Agen │ │  After changes:                        │
+│  │ Reports After E   │ │    Same preview but "Re-assemble"      │
+│  │ APPENDIX F – Qual │ │    button appears in header            │
+│  │                   │ │                                         │
+│  │ ⚠ Excluded (3)   │ │                                         │
+│  │ ❌ Errors (2)     │ │                                         │
+│  └───────────────────┘ │                                         │
+│                        │                                         │
+├────────────────────────┴─────────────────────────────────────────┤
+│ FOOTER: 1,847 pages · 24.3 MB (from 116 MB) | Compress | Email  │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-## Skill Interface (base.py)
+### Component Structure
+```
+App.tsx
+└── ReportDashboard.tsx              (single-page main view)
+    ├── UploadOverlay.tsx            (full-screen drop zone — shown when no files)
+    ├── ProcessingOverlay.tsx        (progress bar during pipeline)
+    ├── Sidebar.tsx                  (report structure / TOC)
+    │   ├── SidebarSection.tsx       (one appendix section, expandable)
+    │   │   └── DocRow.tsx           (one document — filename, pages, confidence, actions)
+    │   ├── ExcludedPanel.tsx        (auto-excluded docs with reasoning + re-include toggle)
+    │   └── ErrorPanel.tsx           (failed conversions + "Retry All" button)
+    ├── PDFPreview.tsx               (main area — assembled report in iframe)
+    └── ActionBar.tsx                (footer — pages, size, compress, download, email)
+```
 
-Every skill must implement this interface:
+### Sidebar Section Requirements
+Each section shows:
+- **Full appendix label**: "APPENDIX D – Historical Records Research"
+- **Doc count and page count**: "8 docs · 342 pages"
+- **Status icon**: ✅ has docs | ⚠️ empty | 🔴 has errors
+- **Expandable** — click to see individual documents
+- **Each document row**: filename (always visible, truncated with tooltip), page count, small confidence dot (green/amber/red), classification reason in small gray text
+- **Actions per doc**: reclassify dropdown, exclude toggle, preview icon, move up/down
+- **Drag-and-drop** between sections to reclassify
 
+### Excluded & Errors (Bottom of Sidebar)
+- **Excluded**: Auto-excluded by AI (compiled reports, old versions). Each shows reasoning. Toggle to re-include.
+- **Errors**: Failed conversions. "Retry All" button calls reprocess-errors endpoint.
+
+### Upload Behavior
+- Upload zone is full-screen centered ONLY when no files exist
+- After upload, collapses to a small "+ Add more files" link at top of sidebar
+- Dropping files triggers the ENTIRE pipeline automatically — no manual classify/assemble buttons
+- Progress shown via SSE in a centered overlay
+
+### Preview Behavior
+- After assembly, main area shows FULL assembled PDF (iframe with Content-Disposition: inline)
+- Scroll-spy: as user scrolls PDF, sidebar highlights current section
+- Click section in sidebar → jumps to that point in PDF
+- This is the PRIMARY view — the whole point of the tool
+
+### After Manual Changes
+- Any reclassify/exclude/reorder sets `hasUnsavedChanges = true`
+- Orange "Re-assemble" button appears in header
+- Click → runs assembly only (fast, no re-classify) → preview updates
+- Button disappears after successful re-assembly
+
+---
+
+## PRIORITY: Backend Bug Fixes
+
+### Bug 1: HEIC Conversion Crashes (74 files failing)
+**File:** `backend/converter.py` — `_convert_heic_to_pdf()`
+
+pillow_heif fails with "Metadata not correctly assigned" on iPhone HEIC photos. macOS `sips` handles them fine.
+
+**Fix:** Try sips first, fall back to pillow_heif:
 ```python
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
-import logging
-
-@dataclass
-class SkillResult:
-    success: bool
-    data: Any
-    error: Optional[str] = None
-    metadata: Dict = None
-
-class BaseSkill(ABC):
-    def __init__(self, config: dict):
-        self.config = config
-        self.logger = logging.getLogger(self.__class__.__name__)
-
-    @abstractmethod
-    async def process(self, input_data: Any) -> SkillResult:
-        """Process input and return result."""
-        pass
-
-    @abstractmethod
-    def validate_input(self, input_data: Any) -> bool:
-        """Validate input before processing."""
-        pass
-
-    def get_model(self) -> str:
-        """Return which Claude model this skill uses. Override per skill."""
-        return None  # No LLM needed by default
+def _convert_heic_to_pdf(input_path, output_dir):
+    output_path = output_dir / f"{input_path.stem}.pdf"
+    # Try macOS sips first (handles problematic HEIC metadata)
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+            tmp_jpg = tmp.name
+        subprocess.run(
+            ["sips", "-s", "format", "jpeg", str(input_path), "--out", tmp_jpg],
+            capture_output=True, timeout=30, check=True,
+        )
+        img = Image.open(tmp_jpg).convert("RGB")
+        _image_to_pdf_page(img, output_path)
+        Path(tmp_jpg).unlink(missing_ok=True)
+        return output_path
+    except Exception as e:
+        logger.warning(f"sips failed: {e}, trying pillow_heif...")
+    # Fallback: pillow_heif (non-macOS)
+    try:
+        import pillow_heif
+        pillow_heif.register_heif_opener()
+        img = Image.open(input_path).convert("RGB")
+        _image_to_pdf_page(img, output_path)
+        return output_path
+    except Exception as e:
+        logger.error(f"HEIC conversion failed for {input_path.name}: {e}")
+        return None
 ```
 
-## Pipeline Flow
+### Bug 2: Images Misclassified by Folder Patterns (521 of 554 docs affected)
+**File:** `backend/classifier.py` — `classify_by_filename()`
 
-```
-FTP Watcher (no LLM)
-    ↓ new file detected
-Document Classifier (Haiku)
-    ↓ returns: {type: "sanborn_map", confidence: 0.97, project_id: "ODIC-2024-001"}
-File Organizer (no LLM)
-    ↓ moves/renames file into project folder structure
-    ↓ checks: are all required documents present for this project?
-Report Assembler (Sonnet) — triggered when all docs present
-    ↓ compiles PDF following ESA template section order
-QA Checker (Sonnet)
-    ↓ validates: completeness, section ordering, required elements
-    ↓ returns: {pass: true} or {pass: false, missing: ["Section 4.2", ...]}
-Notifier (no LLM)
-    ↓ emails/Slack notification to Eric's team with status
-```
+Folder patterns (BLA-, EC_Attachments_, SMEH_*, Geotracker at 0.85 confidence) run BEFORE image detection. Photos in those subfolders get classified as REPORTS_AFTER_E instead of APPENDIX_B. This is the single biggest classification bug.
 
-## Document Types to Classify
-
-The classifier must identify these document types that appear in Phase I ESAs:
-
-- **Sanborn Fire Insurance Maps** — historical land use maps
-- **Topographic Maps** — USGS topo maps of the site area
-- **Aerial Photographs** — historical aerial imagery
-- **City Directories** — historical business/resident listings
-- **Fire Insurance Maps (non-Sanborn)** — other fire insurance providers
-- **Environmental Database Reports (EDR)** — regulatory database search results
-- **Title Records** — property ownership history
-- **Tax Records** — property tax documentation
-- **Building Permits** — construction/renovation history
-- **Site Photographs** — current condition photos from site visit
-- **Regulatory Correspondence** — letters from EPA, state agencies
-- **Prior Environmental Reports** — previous Phase I, Phase II, etc.
-- **Client Correspondence** — emails, letters from the client
-- **Lab Results** — soil, water, air sampling data (Phase II)
-- **Other/Unknown** — flag for manual review
-
-## Config File (config.yaml)
-
-```yaml
-ftp:
-  host: ""           # ODIC's FTP server
-  port: 22
-  username: ""
-  password: ""
-  watch_directory: "/incoming"
-  poll_interval_seconds: 30
-
-llm:
-  api_key_env: "ANTHROPIC_API_KEY"    # Read from env var
-  classifier_model: "claude-haiku-4-5-20251001"
-  reasoning_model: "claude-sonnet-4-5-20250929"
-  max_retries: 3
-  timeout_seconds: 60
-
-pipeline:
-  project_base_dir: "./projects"
-  output_dir: "./completed_reports"
-  max_concurrent_projects: 5
-  auto_assemble_when_complete: true
-
-qa:
-  minimum_sections_required: 8
-  require_site_photos: true
-  require_edr: true
-  require_topo: true
-
-notifications:
-  type: "email"       # email, slack, or both
-  recipients: []
-  smtp_host: ""
-  smtp_port: 587
-```
-
-## ESA Template Section Order (esa_template.yaml)
-
-```yaml
-phase1_esa:
-  sections:
-    - id: cover_page
-      name: "Cover Page"
-      required: true
-    - id: toc
-      name: "Table of Contents"
-      required: true
-      auto_generated: true
-    - id: executive_summary
-      name: "Executive Summary"
-      required: true
-    - id: introduction
-      name: "1.0 Introduction"
-      required: true
-    - id: site_description
-      name: "2.0 Site Description"
-      required: true
-    - id: user_provided_info
-      name: "3.0 User Provided Information"
-      required: true
-    - id: records_review
-      name: "4.0 Records Review"
-      required: true
-      sub_sections:
-        - id: edr_report
-          name: "4.1 Environmental Database Report"
-          doc_types: ["edr"]
-        - id: regulatory_records
-          name: "4.2 Regulatory Agency Records"
-          doc_types: ["regulatory_correspondence"]
-        - id: historical_use
-          name: "4.3 Historical Use Information"
-          doc_types: ["sanborn_map", "city_directory", "fire_insurance_map"]
-    - id: historical_review
-      name: "5.0 Historical Review"
-      required: true
-      sub_sections:
-        - id: aerial_photos
-          name: "5.1 Aerial Photographs"
-          doc_types: ["aerial_photograph"]
-        - id: topo_maps
-          name: "5.2 Topographic Maps"
-          doc_types: ["topographic_map"]
-        - id: sanborn_maps
-          name: "5.3 Sanborn Maps"
-          doc_types: ["sanborn_map"]
-    - id: site_reconnaissance
-      name: "6.0 Site Reconnaissance"
-      required: true
-      doc_types: ["site_photograph"]
-    - id: findings
-      name: "7.0 Findings and Opinions"
-      required: true
-    - id: conclusions
-      name: "8.0 Conclusions"
-      required: true
-    - id: appendices
-      name: "Appendices"
-      required: true
-      sub_sections:
-        - id: appendix_a
-          name: "Appendix A - Site Photographs"
-          doc_types: ["site_photograph"]
-        - id: appendix_b
-          name: "Appendix B - Historical Maps and Aerials"
-          doc_types: ["sanborn_map", "topographic_map", "aerial_photograph"]
-        - id: appendix_c
-          name: "Appendix C - EDR Report"
-          doc_types: ["edr"]
-        - id: appendix_d
-          name: "Appendix D - Regulatory Correspondence"
-          doc_types: ["regulatory_correspondence"]
-```
-
-## LLM Router (llm_router.py)
-
+**Fix:** In the folder patterns block, skip image files so they fall through to image classification:
 ```python
-# Route to appropriate model based on task complexity
-# Haiku: classification, renaming, simple extraction — fast + cheap
-# Sonnet: report assembly, QA validation, reasoning — accurate + thoughtful
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".tiff", ".tif", ".gif", ".bmp"}
+ext_lower = Path(filename).suffix.lower()
 
-class LLMRouter:
-    TASK_MODEL_MAP = {
-        "classify": "classifier_model",      # Haiku
-        "extract": "classifier_model",        # Haiku
-        "rename": "classifier_model",         # Haiku
-        "assemble": "reasoning_model",        # Sonnet
-        "qa_check": "reasoning_model",        # Sonnet
-        "summarize": "reasoning_model",       # Sonnet
-        "notify_draft": "classifier_model",   # Haiku
-    }
+if ext_lower not in IMAGE_EXTENSIONS:
+    for pattern, category, reason in folder_patterns:
+        if re.search(pattern, path_lower):
+            return ClassificationResult(...)
+# Images skip folder patterns → fall through to image classification → APPENDIX_B
 ```
 
-## Critical Requirements
+### Bug 3: ESAI Compound Filename Patterns Missing
+**File:** `backend/classifier.py` — filename patterns list
 
-1. **99% classification accuracy in production** — build confidence scoring into the classifier. Anything below 90% confidence gets flagged for manual review instead of auto-sorted.
-2. **Never lose a document** — if any skill fails, the document stays in a `/failed` queue with full error logging. No silent drops.
-3. **Idempotent processing** — re-running on the same file should not create duplicates.
-4. **State persistence** — track which documents have been processed, which projects are complete, what's pending. Use SQLite or a simple JSON state file.
-5. **Graceful degradation** — if the API is down, queue documents and retry. Don't crash the daemon.
-6. **Chunking strategy** — Claude's context window is 200K tokens (~300 pages). For documents larger than 250 pages, implement chunking with overlap for classification. For report assembly, process section by section.
+Files like `6384674-ESAI-Aerials_1.pdf` don't match. Add to strong filename patterns:
+```python
+(r"esai[_-]?aerials?|aerials?[_-]?\d*\.pdf", SectionCategory.APPENDIX_D, "aerials", "ESAI Aerial photographs"),
+(r"esai[_-]?sanborn", SectionCategory.APPENDIX_D, "sanborn", "ESAI Sanborn maps"),
+(r"esai[_-]?topos?[_-]?\d*", SectionCategory.APPENDIX_D, "topos", "ESAI Topographic maps"),
+(r"esai[_-]?city[_-]?dir", SectionCategory.APPENDIX_D, "city_directory", "ESAI City directory"),
+(r"esai[_-]?radius", SectionCategory.APPENDIX_C, None, "ESAI Radius report"),
+(r"esai[_-]?report", SectionCategory.COVER_WRITEUP, None, "ESAI Report"),
+```
 
-## Build Order
+### Bug 4: Compiled Reports Get Included in Assembly
+**File:** `backend/main.py` — upload processing flow
 
-1. `base.py` — skill interface
-2. `llm_router.py` — model routing
-3. `document_classifier.py` — get classification working first with test PDFs
-4. `file_organizer.py` — folder structure and renaming
-5. `ftp_watcher.py` — FTP monitoring
-6. `state.py` — state tracking
-7. `pipeline.py` — orchestration
-8. `report_assembler.py` — PDF compilation
-9. `qa_checker.py` — validation
-10. `notifier.py` — notifications
-11. `daemon.py` — main daemon
-12. `main.py` — entry point
-13. Docker setup
-14. Tests
+The full 1,702-page previously-assembled report gets uploaded alongside source docs, classified as COVER_WRITEUP, and assembled into the new report (ballooning to 14,000+ pages).
 
-## What NOT to Build
+**Do NOT use page count thresholds.** Use content fingerprinting — detect compiled reports by their internal structure:
+```python
+def is_compiled_report(pdf_path: Path) -> bool:
+    text = extract_first_n_pages_text(pdf_path, n=30).lower()
+    appendix_markers = ["appendix a", "appendix b", "appendix c",
+                        "appendix d", "appendix e", "appendix f"]
+    found = sum(1 for m in appendix_markers if m in text)
+    has_toc = "table of contents" in text
+    has_reliance = "reliance" in text and "letter" in text
+    return found >= 3 and (has_toc or has_reliance)
 
-- No web UI yet — CLI and config files only for v1
-- No user auth — single-tenant, runs on ODIC's infrastructure or yours
-- No multi-LLM provider support — Anthropic only
-- No skill marketplace — hardcoded pipeline for now
-- No browser automation — FTP and API only for v1
+def extract_first_n_pages_text(pdf_path: Path, n: int = 30) -> str:
+    import pypdf
+    try:
+        reader = pypdf.PdfReader(str(pdf_path))
+        return "".join(reader.pages[i].extract_text() or "" for i in range(min(n, len(reader.pages))))
+    except Exception:
+        return ""
+```
 
+If detected → `doc.is_included = False` with reasoning. User can override in QA sidebar.
+
+### Bug 5: Multiple Versions of Same Document All Included
+**File:** `backend/main.py`
+
+6 files classified as COVER_WRITEUP including 4 revisions of the same DOCX. Only newest should be used.
+
+**Fix:** After classification, deduplicate by normalized filename:
+```python
+def deduplicate_documents(documents):
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for doc in documents:
+        base = re.sub(r'[_-]?(v\d+|rev\d+|final|draft|copy|\(\d+\))', '', doc.original_filename.lower())
+        base = Path(base).stem
+        groups[base].append(doc)
+    for base, versions in groups.items():
+        if len(versions) <= 1:
+            continue
+        versions.sort(key=lambda d: d.file_modified or d.uploaded_at, reverse=True)
+        for old in versions[1:]:
+            old.is_included = False
+            old.reasoning = f"Superseded by newer version: {versions[0].original_filename}"
+```
+
+### Bug 6: Reprocess Failed Conversions Endpoint
+**Files:** `backend/main.py`, `frontend/src/api/client.ts`, `frontend/src/stores/reportStore.ts`, UI
+
+Create `POST /api/reports/{report_id}/reprocess-errors` — retries all error-status documents with the fixed converter. Returns `{ fixed, remaining_errors }`. Frontend "Retry All" button in the ErrorPanel.
+
+### Bug 7: DOCX Tracked Changes Visible in Output
+**File:** `backend/converter.py`
+
+When converting DOCX to PDF, accept all tracked changes and render as "no markup" view. No strikethrough text, no red/pink revision marks, no comment bubbles. All text should be black. Use python-docx to programmatically accept tracked changes before passing to LibreOffice if needed.
+
+---
+
+## Automatic Pipeline (No Manual Buttons)
+
+When files are uploaded, run this full pipeline automatically via SSE:
+
+1. **Convert** all files to PDF (sips for HEIC, LibreOffice for DOCX, Pillow for images)
+2. **Classify** every document (filename patterns first → Ollama fallback → OCR for scanned PDFs)
+3. **Detect compiled reports** (content fingerprint first 30 pages)
+4. **Deduplicate** versions (keep newest, exclude older)
+5. **Auto-name** report (extract project number + address from cover doc via Ollama)
+6. **Assemble** final PDF (merge all included docs in template order, no divider pages)
+7. **Frontend switches** from processing overlay to full PDF preview
+
+Push progress via SSE: "Converting 234/554..." → "Classifying..." → "Assembling..." → "Done! 1,847 pages"
+
+---
+
+## Report Template (Strict Order)
+
+### With Reliance Letter
+1. Reliance Letter
+2. E&O Insurance
+3. Cover / Write-Up (Phase I ESA body)
+4. APPENDIX A – Property Location Map & Plot Plan
+5. APPENDIX B – Property & Vicinity Photographs
+6. APPENDIX C – Database Report (Radius)
+7. APPENDIX D – Historical Records Research (sub-order: Sanborn → Aerials → Topos → City Directory)
+8. APPENDIX E – Public Agency Records / Other Relevant Documents
+9. Reports After E (permits, city records, county records, GeoTracker)
+10. APPENDIX F – Qualifications of Environmental Professional
+
+### Without Reliance Letter
+Same but skip #1.
+
+### Rules
+- No AI-generated divider pages. Documents flow directly section to section.
+- Within APPENDIX D, enforce sub-order: Sanborn → Aerials → Topos → City Directory
+- Photos (HEIC/JPG/PNG) → APPENDIX B unless filename clearly indicates otherwise
+- Match the north star documents: `6384578-ESAI-Report.pdf` and `6384642-ESAI-Report.pdf`
+
+---
+
+## Hard Constraints
+
+1. **All auto-exclusions are overridable.** Nothing permanently deleted. Sets `is_included = False` with `reasoning` string.
+2. **No hardcoded page count limits** for compiled report detection. Content fingerprinting only.
+3. **A good report is 1,000–4,000 pages.** Individual source docs can be hundreds of pages.
+4. **Preview endpoints must use `Content-Disposition: inline`**, not `attachment`.
+5. **Filenames must always be visible** in sidebar document rows.
+6. **Assembled PDF preview is the main view** — not hidden behind clicks.
+7. **No AI-generated content in the report** — no emails, no dividers, no generated text. System only organizes and merges.
+8. **DOCX tracked changes:** Accept all, render as "no markup", all text black.
+9. **Never modify document content.** Only convert formats and merge PDFs.
+10. **Compression must maintain readability.** Reports go to clients and regulators.
+
+## Visual Design
+
+- Clean, professional, minimal — environmental consulting firm context
+- White/light gray background, sidebar with subtle gray borders
+- Accent: deep blue (#1e40af) primary, green success, amber warning, red errors
+- System font stack — no custom fonts needed
+- Show filenames always, confidence as small colored dots, page counts everywhere
+- Dense but readable — power user (Rose) reviews 500+ docs
+- Desktop only — no responsive needed
+
+## Testing With Real Data
+
+Sample folder: `/Users/bp/Desktop/Dev & Code/esa-test/6384674ESAI/`
+- 554 files, 74 HEIC, multiple DOCX revisions, one 1,702-page compiled report
+- North stars: `6384578-ESAI-Report.pdf` and `6384642-ESAI-Report.pdf`
+- After all fixes: assembled report should be 1,000–4,000 pages matching north star structure
+
+## Key Patterns
+
+- Drag-and-drop between sections reclassifies (PUT to update category); within section reorders
+- `main.py` contains compiled-report detection and deduplication logic
+- Classification confidence drives UI: green dot (high) / amber (low) / blue (manual)
+- SSE endpoints (`upload-folder-stream`, `classify-stream`) return `EventSourceResponse` from `sse-starlette`
+- 10-minute axios timeouts on long operations
 
 <claude-mem-context>
-# Recent Activity
 
-### Feb 16, 2026
-
-| ID | Time | T | Title | Read |
-|----|------|---|-------|------|
-| #282 | 11:10 PM | 🔵 | ODIC ESA Pipeline TypeScript Project Structure | ~350 |
 </claude-mem-context>

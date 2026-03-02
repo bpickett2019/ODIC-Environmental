@@ -1,41 +1,25 @@
-# Dependencies
-venv/
-node_modules/
-.pnp
-.pnp.js
-
-# Environment / Secrets
-.env
-.env.local
-.env.*.local
-
-# Databases
-*.db
-*.sqlite
-*.sqlite3
-pipeline_state.db
-
-# Project data / uploads / outputs
-projects/
-uploads/
-completed_reports/
-qa_review/
-output/
-*.pdf
-
 # Python
 __pycache__/
+*.pyc
 *.py[cod]
 *$py.class
 *.egg-info/
-dist/
-build/
 *.egg
+backend/venv/
+backend/.env
+backend/uploads/
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
 
-# Node / Next.js
-.next/
-out/
-.turbo
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/screenshots/
+
+# OS
+.DS_Store
+Thumbs.db
 
 # IDE
 .vscode/
@@ -44,22 +28,14 @@ out/
 *.swo
 *~
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Pytest
-.pytest_cache/
-htmlcov/
-.coverage
-
 # Logs
 *.log
+
+# Agent state
+.claude/
+.ralph/
 
 # SSH keys
 .ssh/
 *.pem
 *.key
-
-# Ralph Wiggum agent state
-.ralph/
