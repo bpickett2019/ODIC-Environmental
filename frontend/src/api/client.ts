@@ -1,7 +1,28 @@
 import axios from 'axios';
 import type { Report, Document, AssembleResult, CompressResult, SectionCategory, ChatResponse, ChatMessage, SplitResult, DocxContentResponse, DocxParagraph } from '../types';
 
-const api = axios.create({ baseURL: '/api' });
+// Determine API URL based on environment
+const getApiUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  
+  // If explicit VITE_API_URL is set, use it
+  if (envUrl && envUrl !== 'http://localhost:8000') {
+    return `${envUrl}/api`;
+  }
+  
+  // Local development: use /api proxy
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return '/api';
+  }
+  
+  // Production: derive from current domain
+  const protocol = window.location.protocol;
+  const hostname = window.location.hostname;
+  const port = window.location.port ? `:${window.location.port}` : '';
+  return `${protocol}//${hostname}${port}/api`;
+};
+
+const api = axios.create({ baseURL: getApiUrl() });
 
 // Reports
 export const createReport = (data: {

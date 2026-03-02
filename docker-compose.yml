@@ -1,0 +1,52 @@
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: odic-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - AI_BACKEND=ollama
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - OLLAMA_MODEL=qwen2.5:7b
+      - OLLAMA_VL_MODEL=qwen2.5vl:7b
+      - OLLAMA_CONCURRENCY=8
+      - DATABASE_URL=sqlite:///./reports.db
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/reports.db:/app/reports.db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - odic-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: odic-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - odic-network
+
+networks:
+  odic-network:
+    driver: bridge
