@@ -1,5 +1,11 @@
 # ODIC Environmental — Complete Tech Stack
 
+⚠️ **Critical: LibreOffice + Ghostscript REQUIRED**
+- **LibreOffice** must be installed (converts .docx/.doc/.vsd → PDF)
+- **Ghostscript** must be installed (compresses final PDFs)
+- Both included in `Dockerfile.prod` for deployment
+- Install locally: `apt-get install libreoffice ghostscript` (Linux) or `brew install libreoffice ghostscript` (macOS)
+
 ---
 
 ## 🎨 FRONTEND
@@ -325,13 +331,13 @@ Node.js 20+          Frontend build
 pip                  Python package manager
 npm                  Node package manager
 Docker               Container engine (for deployment)
+LibreOffice          Convert .docx/.doc/.vsd to PDF (REQUIRED for Word docs)
+Ghostscript          PDF compression (optimize DPI for final assembly)
 ```
 
 ### **Optional (For Advanced Features)**
 ```
-Ghostscript          PDF compression (optimize DPI)
-Tesseract OCR        Optical character recognition
-LibreOffice          Document format conversion
+Tesseract OCR        Optical character recognition (scanned PDFs)
 ImageMagick          Image manipulation
 CUDA / Metal GPU     Ollama GPU acceleration (if available)
 ```
@@ -355,7 +361,7 @@ sudo apt-get install -y \
 
 **macOS:**
 ```bash
-brew install python@3.11 node docker ghostscript tesseract
+brew install python@3.11 node docker ghostscript tesseract libreoffice
 ```
 
 **Windows:**
@@ -363,6 +369,7 @@ brew install python@3.11 node docker ghostscript tesseract
 - Python 3.11 from python.org
 - Node.js from nodejs.org
 - Ghostscript from sourceforge.net
+- LibreOffice from libreoffice.org
 
 ---
 
@@ -594,9 +601,10 @@ Persistent Disk (/var/data/)
 | **Database** | SQLite/PostgreSQL | Data storage | $0 (SQLite) |
 | **ORM** | SQLAlchemy | Database abstraction | $0 |
 | **Documents** | PyPDF + python-docx | File processing | $0 |
+| **Document Conversion** | LibreOffice | Convert .docx/.doc/.vsd to PDF | $0 |
+| **PDF Compression** | Ghostscript | Optimize PDF file size | $0 |
 | **AI Local** | Ollama + qwen2.5 | Classification | $0 |
 | **AI Cloud** | Claude API | Optional tiebreaker | $0.01-0.02/doc |
-| **Compression** | Ghostscript | PDF optimization | $0 |
 | **Containers** | Docker | Deployment | $0 |
 | **Hosting** | Render.com | Cloud platform | Free tier ($7/mo credit) |
 
