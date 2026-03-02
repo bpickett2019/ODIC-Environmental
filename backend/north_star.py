@@ -60,19 +60,28 @@ Appendix D — ~10 docs, 188 pages (in this exact sub-order)
 
 Appendix E — ~15 docs, 196 pages
   What's here: Public agency records and regulatory correspondence.
+  Permissive category — accept any supporting documents not clearly for other appendices.
   These are SHORT documents (1-20 pages each) FROM government agencies:
   - BAAQMD air quality permits (1-5 pages)
   - DTSC regulatory letters (1-3 pages)
   - RWQCB correspondence (1-5 pages)
   - UST underground storage tank forms (1-3 pages)
   - CERS hazardous materials certifications (1-2 pages)
-  - Property profiles from title companies (5-15 pages)
+  - Property profiles from title companies (5-15 pages) ← RANK FIRST in Appendix E
   - City/county inspection reports (1-10 pages)
   - Building permits, fire department permits (1-5 pages)
-
-  KEY DISTINCTION: If it's a short document FROM a government agency
-  (permit, letter, form, certificate, inspection report) -> APPENDIX E.
-  If it's a long technical report FROM a consulting firm -> REPORTS AFTER E.
+  - County records, FOIA responses, title searches
+  - ANY supporting document that doesn't fit other appendices
+  
+  ORDERING WITHIN APPENDIX E:
+  1. Property Profile / Property Detail Report (if present) — ALWAYS FIRST
+  2. All other documents in upload order or by relevance
+  
+  KEY DISTINCTIONS:
+  - Short document FROM government agency → APPENDIX E
+  - Long technical report FROM consulting firm → REPORTS AFTER E
+  - Property profile/detail report → APPENDIX E, rank FIRST
+  - If unsure, default to APPENDIX E (it's permissive)
 
 Reports After E — 0-10 KEY docs, 0-500 pages (NOT the entire archive)
   What's here: Only the MOST IMPORTANT technical reports from other firms.

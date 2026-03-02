@@ -68,6 +68,7 @@ class Document(Base):
     sort_order = Column(Integer, default=0)
     status = Column(String(20), default=DocumentStatus.UPLOADED.value)
     is_included = Column(Boolean, default=True)
+    metadata_json = Column(Text)  # JSON: extracted project_id, address, company, etc.
     created_at = Column(DateTime, default=datetime.utcnow)
 
     report = relationship("Report", back_populates="documents")

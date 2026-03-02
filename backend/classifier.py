@@ -20,6 +20,13 @@ from pypdf import PdfReader
 
 from config import settings
 from north_star import NORTH_STAR_MANIFEST
+from classifier_enhancements import (
+    smart_text_extraction,
+    extract_ordering_hint,
+    detect_property_profile,
+    detect_cross_contamination,
+    get_page_count_safe,
+)
 
 pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_PATH
 from models import ClassificationResult, SectionCategory
@@ -407,7 +414,14 @@ def render_page_to_base64(pdf_path: Path, page: int = 0) -> Optional[str]:
 
 
 def extract_classification_content(pdf_path: Path, filename: str, rel_path: str) -> dict:
-    """Extract everything AI needs to classify a document."""
+    """Extract everything AI needs to classify a document.
+    
+    For 18K-page documents, uses smart sampling:
+    - Small docs (<50 pages): read fully
+    - Large docs (50+): read first 5 + last 3 + sample every 100th page
+    
+    This keeps token usage manageable while preserving classification accuracy.
+    """
     content = {
         "filename": filename,
         "relative_path": rel_path,
@@ -415,6 +429,9 @@ def extract_classification_content(pdf_path: Path, filename: str, rel_path: str)
         "file_size_kb": 0,
         "first_page_text": "",
         "first_page_image_b64": None,
+        "contamination_check": {},
+        "ordering_hint": None,
+        "is_property_profile": False,
     }
 
     try:
@@ -422,23 +439,32 @@ def extract_classification_content(pdf_path: Path, filename: str, rel_path: str)
     except Exception:
         pass
 
-    try:
-        reader = PdfReader(str(pdf_path))
-        content["page_count"] = len(reader.pages)
-    except Exception:
-        pass
+    # Get page count
+    total_pages = get_page_count_safe(pdf_path)
+    content["page_count"] = total_pages
 
-    # Extract text from first 2 pages (500 chars is enough for header/title classification)
-    content["first_page_text"] = _extract_text_from_pdf(pdf_path, max_pages=2, max_chars=500)
-
-    # If text is too short (scanned PDF), try OCR
-    if len(content["first_page_text"].strip()) < 50:
-        try:
-            ocr_text = _ocr_pdf_pages(pdf_path, max_pages=1, max_chars=500)
-            if len(ocr_text.strip()) > len(content["first_page_text"].strip()):
-                content["first_page_text"] = ocr_text
-        except Exception:
-            pass
+    # Smart sampling based on document size
+    if total_pages > 0:
+        extracted_text, contamination_check = smart_text_extraction(pdf_path, total_pages)
+        content["first_page_text"] = extracted_text
+        content["contamination_check"] = contamination_check
+        
+        logger.info(
+            f"Extracted {len(extracted_text)} chars from {filename} "
+            f"({total_pages} pages, {'sampled' if total_pages > 50 else 'full read'})"
+        )
+    else:
+        # Fallback to legacy extraction if page count failed
+        content["first_page_text"] = _extract_text_from_pdf(pdf_path, max_pages=2, max_chars=500)
+        
+        # If text is too short (scanned PDF), try OCR
+        if len(content["first_page_text"].strip()) < 50:
+            try:
+                ocr_text = _ocr_pdf_pages(pdf_path, max_pages=1, max_chars=500)
+                if len(ocr_text.strip()) > len(content["first_page_text"].strip()):
+                    content["first_page_text"] = ocr_text
+            except Exception:
+                pass
 
     return content
 
@@ -560,7 +586,10 @@ async def classify_document_by_content(
     filename: str,
     relative_path: str = "",
 ) -> ClassificationResult:
-    """Primary content-based classifier. Analyzes document content via AI."""
+    """Primary content-based classifier. Analyzes document content via AI.
+    
+    Also extracts ordering hints and checks for cross-contamination.
+    """
 
     # Pre-filter: trivially obvious file types skip AI
     prefilter = needs_ai_classification(filename)
@@ -600,6 +629,29 @@ async def classify_document_by_content(
             f"{ai_result.reasoning} "
             f"[NOTE: filename suggests {legacy.category.value} — {legacy.reasoning}]"
         )
+
+    # Post-AI: Extract ordering hints for Appendix D documents
+    if ai_result.category == SectionCategory.APPENDIX_D and not ai_result.subcategory:
+        hint = extract_ordering_hint(pdf_path, "APPENDIX_D")
+        if hint:
+            ai_result.subcategory = hint
+            ai_result.reasoning += f" [Subcategory from content: {hint}]"
+            logger.info(f"Extracted Appendix D subcategory '{hint}' for {filename}")
+
+    # Post-AI: Detect if Appendix E doc is a Property Profile (rank first)
+    if ai_result.category == SectionCategory.APPENDIX_E:
+        if detect_property_profile(pdf_path, "APPENDIX_E"):
+            ai_result.sort_order = 1  # Will be sorted first in Appendix E
+            ai_result.reasoning += " [Property Profile — ranked first in Appendix E]"
+            logger.info(f"Detected Property Profile in {filename}")
+
+    # Post-AI: Check for cross-contamination
+    contamination = content.get("contamination_check", {})
+    if contamination.get("found_project_id"):
+        ai_result.metadata = ai_result.metadata or {}
+        ai_result.metadata["found_project_id"] = contamination["found_project_id"]
+        ai_result.metadata["found_address"] = contamination.get("found_address")
+        ai_result.metadata["found_company"] = contamination.get("found_company")
 
     return ai_result
 

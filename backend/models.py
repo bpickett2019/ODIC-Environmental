@@ -70,6 +70,7 @@ class ClassificationResult(BaseModel):
     confidence: float
     reasoning: str
     sort_order: Optional[int] = None  # Override default sort_order (e.g. -1 for cover pages)
+    metadata: Optional[dict] = None  # Additional AI-extracted metadata (project_id, address, company, etc.)
 
 
 class DocumentCreate(BaseModel):

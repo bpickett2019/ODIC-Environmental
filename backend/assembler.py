@@ -72,13 +72,28 @@ def assemble_report(
 
     # Sort within each section
     def _sort_key(doc, cat):
-        """Generate sort key for a document within its section."""
+        """Generate sort key for a document within its section.
+        
+        Ordering rules:
+        - Appendix D: Sanborn → Aerials → Topos → City Directory (via subcategory)
+        - Appendix E: Property Profile first (sort_order=1), then others (sort_order=0)
+        - Appendix B: Natural filename sort (preserves photo sequence)
+        - Reports After E: Group by source type (BLA, EC, SMEH, GeoTracker)
+        - Others: sort_order then filename
+        """
         filename = doc.get("original_filename", "").lower()
         sort_order = doc.get("sort_order", 0)
 
         if cat == "APPENDIX_D":
+            # Sanborn → Aerials → Topos → City Directory
             subcat_order = {s: i for i, s in enumerate(settings.APPENDIX_D_ORDER)}
-            return (subcat_order.get(doc.get("subcategory", ""), 99), sort_order, filename)
+            subcategory = doc.get("subcategory", "unknown")
+            return (subcat_order.get(subcategory, 99), sort_order, filename)
+
+        if cat == "APPENDIX_E":
+            # Property profiles (sort_order=1) first, then everything else (sort_order=0)
+            # This ensures Property Profile gets ranked first
+            return (sort_order, filename)
 
         if cat == "REPORTS_AFTER_E":
             # Group by source type, then filename
