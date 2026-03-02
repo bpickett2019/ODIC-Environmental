@@ -20,8 +20,8 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install serve to run the app
-RUN npm install -g serve
+# Install serve to run the app and curl for health checks
+RUN npm install -g serve && apk add --no-cache curl
 
 # Copy built app from builder stage
 COPY --from=builder /app/dist ./dist
@@ -31,7 +31,7 @@ EXPOSE 5173
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:5173/ || exit 1
+    CMD curl --fail http://localhost:5173/ || exit 1
 
 # Run the app
 CMD ["serve", "-s", "dist", "-l", "5173"]
