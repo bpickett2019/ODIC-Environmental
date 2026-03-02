@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: odic-esa-backend
+    runtime: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: AI_BACKEND
+        value: anthropic
+      - key: ANTHROPIC_API_KEY
+        sync: false

@@ -1,12 +1,11 @@
 services:
   - type: web
     name: odic-esa
-    env: docker
+    runtime: docker
     dockerfilePath: ./Dockerfile.prod
-    autoDeploy: true
+    autoDeploy: false
     envVars:
       - key: AI_BACKEND
         value: anthropic
       - key: ANTHROPIC_API_KEY
-        scope: run
         sync: false
