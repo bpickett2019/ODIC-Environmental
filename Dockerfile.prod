@@ -1,0 +1,39 @@
+# Unified ODIC Environmental - Production Dockerfile
+# Builds both backend (Python/FastAPI) and frontend (React/Node)
+# Serves frontend static files + backend API from single container
+
+FROM node:18 as frontend-build
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm ci --legacy-peer-deps
+COPY frontend . 
+RUN npm run build
+
+FROM python:3.11-slim
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    tesseract-ocr \
+    ghostscript \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy backend
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend .
+
+# Copy frontend build
+COPY --from=frontend-build /app/frontend/dist ./static
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Run backend (will serve static frontend files too)
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

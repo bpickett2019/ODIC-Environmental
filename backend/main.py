@@ -171,11 +171,18 @@ app = FastAPI(title="Environmental Report Assembler", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
+    allow_origins=["*"],  # Allow all origins since we're serving the frontend ourselves
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve static frontend files from React build
+from fastapi.staticfiles import StaticFiles
+static_dir = Path(__file__).parent.parent / "static"
+if static_dir.exists():
+    app.mount("/app", StaticFiles(directory=str(static_dir), html=True), name="frontend")
+    logger.info(f"Mounted frontend static files from {static_dir}")
 
 
 @app.on_event("startup")
