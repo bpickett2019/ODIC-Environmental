@@ -588,6 +588,7 @@ async def classify_document_by_content(
 ) -> ClassificationResult:
     """Primary content-based classifier. Analyzes document content via AI.
     
+    Tries primary backend (Ollama/Anthropic), falls back to secondary, then legacy filename classifier.
     Also extracts ordering hints and checks for cross-contamination.
     """
 
@@ -600,14 +601,45 @@ async def classify_document_by_content(
     content = extract_classification_content(pdf_path, filename, relative_path)
 
     ai_result = None
+    primary_backend = settings.AI_BACKEND or "ollama"
 
-    try:
-        ai_result = await _classify_with_ollama(content)
-    except Exception as e:
-        logger.error(f"AI classification failed for {filename}: {e}")
+    # Try primary backend
+    if primary_backend == "ollama":
+        try:
+            logger.debug(f"Classifying {filename} with Ollama")
+            ai_result = await _classify_with_ollama(content)
+        except Exception as e:
+            logger.warning(f"Ollama classification failed for {filename}: {e}. Trying Anthropic fallback...")
+            # Try Anthropic fallback
+            if settings.ANTHROPIC_API_KEY:
+                try:
+                    ai_result = await _classify_with_anthropic(content)
+                    logger.info(f"Switched to Anthropic for {filename}")
+                except Exception as e2:
+                    logger.error(f"Anthropic fallback also failed for {filename}: {e2}")
+    elif primary_backend == "anthropic":
+        try:
+            logger.debug(f"Classifying {filename} with Anthropic")
+            ai_result = await _classify_with_anthropic(content)
+        except ImportError:
+            logger.warning(f"Anthropic module not available for {filename}. Falling back to Ollama...")
+            try:
+                ai_result = await _classify_with_ollama(content)
+                logger.info(f"Switched to Ollama for {filename}")
+            except Exception as e2:
+                logger.error(f"Ollama fallback also failed for {filename}: {e2}")
+        except Exception as e:
+            logger.warning(f"Anthropic classification failed for {filename}: {e}. Trying Ollama fallback...")
+            # Try Ollama fallback
+            try:
+                ai_result = await _classify_with_ollama(content)
+                logger.info(f"Switched to Ollama for {filename}")
+            except Exception as e2:
+                logger.error(f"Ollama fallback also failed for {filename}: {e2}")
 
     # If AI failed entirely, fall back to legacy filename classifier
     if ai_result is None:
+        logger.warning(f"All AI backends failed for {filename}, using legacy filename classifier")
         legacy = classify_by_filename_legacy(filename, relative_path)
         if legacy:
             legacy.reasoning = f"[FALLBACK] {legacy.reasoning} (AI classification unavailable)"

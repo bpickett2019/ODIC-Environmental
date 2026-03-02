@@ -179,17 +179,90 @@ app.add_middleware(
 
 # Serve static frontend files from React build
 from fastapi.staticfiles import StaticFiles
-static_dir = Path(__file__).parent.parent / "static"
-if static_dir.exists():
+
+# Static files are at: backend/static (copied from frontend/dist by Dockerfile)
+# Using relative path so it works in all deployment environments
+static_dir = Path(__file__).parent / "static"
+
+if static_dir.exists() and any(static_dir.iterdir()):
     app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="frontend")
-    logger.info(f"Mounted frontend static files from {static_dir}")
+    logger.info(f"✓ Mounted frontend static files from {static_dir} ({len(list(static_dir.glob('**/*')))} files)")
 else:
-    logger.warning(f"Static directory not found at {static_dir}. Frontend will not be served. This is OK for API-only deployments.")
+    logger.warning(
+        f"Static directory not fully initialized at {static_dir}. "
+        "Frontend will not be served. Make sure Dockerfile.prod copies frontend/dist to backend/static. "
+        "For API-only deployments, this warning is OK."
+    )
+
+
+# ---- Global Exception Handlers ----
+
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request, exc):
+    """Handle HTTP exceptions with structured JSON response."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": exc.detail,
+            "status_code": exc.status_code,
+            "path": str(request.url.path),
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request, exc):
+    """Handle unexpected exceptions with useful error context."""
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error",
+            "detail": str(exc) if not isinstance(exc, HTTPException) else exc.detail,
+            "type": type(exc).__name__,
+            "path": str(request.url.path),
+        },
+    )
 
 
 @app.on_event("startup")
 def startup():
-    init_db()
+    """Startup event: Initialize database and validate configuration."""
+    # Initialize database with error handling
+    try:
+        init_db()
+        logger.info("✓ Database initialized successfully")
+    except Exception as e:
+        logger.error(f"✗ Failed to initialize database: {e}", exc_info=True)
+        raise RuntimeError(f"Database initialization failed: {e}") from e
+    
+    # Validate configuration
+    try:
+        # If AI_BACKEND is anthropic, require API key
+        if settings.AI_BACKEND == "anthropic":
+            if not settings.ANTHROPIC_API_KEY:
+                logger.warning(
+                    "AI_BACKEND=anthropic but ANTHROPIC_API_KEY not set. "
+                    "Falling back to ollama. Set ANTHROPIC_API_KEY environment variable to use Claude."
+                )
+                settings.AI_BACKEND = "ollama"
+            else:
+                logger.info("✓ Anthropic API key configured")
+        
+        # Validate upload directory exists
+        settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        logger.info(f"✓ Upload directory ready: {settings.UPLOAD_DIR}")
+        
+        # Log active backend
+        logger.info(f"✓ AI Backend: {settings.AI_BACKEND}")
+        
+    except Exception as e:
+        logger.error(f"✗ Configuration validation failed: {e}", exc_info=True)
+        raise RuntimeError(f"Configuration validation failed: {e}") from e
 
 
 @app.get("/health")

@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Optional
 from pydantic_settings import BaseSettings
 
 
@@ -20,8 +21,8 @@ class Settings(BaseSettings):
     OLLAMA_VL_MODEL: str = "qwen2.5vl:7b"  # Vision-language model for scanned PDFs
     OLLAMA_CONCURRENCY: int = 8              # Max concurrent Ollama calls during classification
 
-    # Anthropic Claude API (production recommendation)
-    ANTHROPIC_API_KEY: str = os.environ.get("ANTHROPIC_API_KEY", "")
+    # Anthropic Claude API (production recommendation) — Optional
+    ANTHROPIC_API_KEY: Optional[str] = os.environ.get("ANTHROPIC_API_KEY", None)
     CLAUDE_MODEL: str = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-20250514")
 
     # External tools

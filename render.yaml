@@ -6,12 +6,16 @@ services:
     autoDeploy: false
     healthCheckPath: /health
     envVars:
+      # AI Backend: "ollama" (default, free, local) or "anthropic" (paid, requires API key)
       - key: AI_BACKEND
-        value: anthropic
+        value: ollama
+      # Anthropic API Key (required if AI_BACKEND=anthropic, optional otherwise)
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Database location (SQLite for simplicity, can override to PostgreSQL)
       - key: DATABASE_URL
         value: sqlite:////data/reports.db
+      # System command paths (for document conversion)
       - key: LIBREOFFICE_PATH
         value: soffice
       - key: GHOSTSCRIPT_PATH

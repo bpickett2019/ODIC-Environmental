@@ -138,10 +138,13 @@ RULES:
 
 
 async def _call_llm(system_prompt: str, user_message: str) -> dict:
-    """Call LLM and return parsed JSON response."""
-    # Try Ollama first
-    if settings.AI_BACKEND in ("ollama", ""):
+    """Call LLM and return parsed JSON response. Tries primary backend, falls back to secondary."""
+    primary_backend = settings.AI_BACKEND or "ollama"
+    
+    # Try primary backend first (Ollama or Anthropic)
+    if primary_backend == "ollama":
         try:
+            logger.debug("Attempting Ollama chat")
             async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
                     f"{settings.OLLAMA_URL}/api/generate",
@@ -159,13 +162,15 @@ async def _call_llm(system_prompt: str, user_message: str) -> dict:
                 if text.startswith("```"):
                     text = re.sub(r"```(?:json)?\s*", "", text)
                     text = text.rstrip("`").strip()
+                logger.debug("Ollama chat succeeded")
                 return json.loads(text)
         except Exception as e:
-            logger.warning(f"Ollama chat failed, trying fallback: {e}")
+            logger.warning(f"Ollama chat failed: {e}. Trying Anthropic fallback...")
+            # Fall through to Anthropic
 
-    # Anthropic fallback
-    if settings.ANTHROPIC_API_KEY:
+    elif primary_backend == "anthropic":
         try:
+            logger.debug("Attempting Anthropic chat")
             import anthropic
             client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
             response = client.messages.create(
@@ -178,11 +183,63 @@ async def _call_llm(system_prompt: str, user_message: str) -> dict:
             if text.startswith("```"):
                 text = re.sub(r"```(?:json)?\s*", "", text)
                 text = text.rstrip("`").strip()
+            logger.debug("Anthropic chat succeeded")
+            return json.loads(text)
+        except ImportError:
+            logger.warning("Anthropic module not available. Falling back to Ollama...")
+        except Exception as e:
+            logger.warning(f"Anthropic chat failed: {e}. Trying Ollama fallback...")
+            # Fall through to Ollama
+
+    # Fallback: Try Anthropic if primary was Ollama
+    if primary_backend == "ollama" and settings.ANTHROPIC_API_KEY:
+        try:
+            logger.debug("Attempting Anthropic fallback")
+            import anthropic
+            client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+            response = client.messages.create(
+                model=settings.CLAUDE_MODEL,
+                max_tokens=1000,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}],
+            )
+            text = response.content[0].text.strip()
+            if text.startswith("```"):
+                text = re.sub(r"```(?:json)?\s*", "", text)
+                text = text.rstrip("`").strip()
+            logger.info("Switched to Anthropic after Ollama failed")
             return json.loads(text)
         except Exception as e:
-            logger.error(f"Anthropic chat failed: {e}")
+            logger.error(f"Anthropic fallback also failed: {e}")
 
-    return {"message": "AI is unavailable. Please try again.", "actions": []}
+    # Fallback: Try Ollama if primary was Anthropic
+    if primary_backend == "anthropic":
+        try:
+            logger.debug("Attempting Ollama fallback")
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    f"{settings.OLLAMA_URL}/api/generate",
+                    json={
+                        "model": settings.OLLAMA_MODEL,
+                        "prompt": f"{system_prompt}\n\nUser: {user_message}",
+                        "stream": False,
+                        "format": "json",
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+                text = data["response"].strip()
+                if text.startswith("```"):
+                    text = re.sub(r"```(?:json)?\s*", "", text)
+                    text = text.rstrip("`").strip()
+                logger.info("Switched to Ollama after Anthropic failed")
+                return json.loads(text)
+        except Exception as e:
+            logger.error(f"Ollama fallback also failed: {e}")
+
+    # All backends failed
+    logger.error("All AI backends unavailable")
+    return {"message": "AI is unavailable. Please check Ollama/Anthropic connectivity and try again.", "actions": []}
 
 
 def _snapshot_docs(docs: list[Document]) -> str:
