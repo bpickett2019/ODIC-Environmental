@@ -1,0 +1,19 @@
+{
+  "name": "ODIC Environmental ESA Report System",
+  "description": "AI-powered environmental report assembly with Claude",
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ],
+  "env": {
+    "AI_BACKEND": {
+      "description": "AI backend to use",
+      "value": "anthropic"
+    },
+    "ANTHROPIC_API_KEY": {
+      "description": "Your Anthropic Claude API key",
+      "required": true
+    }
+  }
+}
