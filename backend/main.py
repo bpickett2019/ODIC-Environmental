@@ -190,6 +190,12 @@ def startup():
     init_db()
 
 
+@app.get("/health")
+def health_check():
+    """Health check endpoint for Docker/Render deployment."""
+    return {"status": "ok"}
+
+
 # ---- Report CRUD ----
 
 @app.post("/api/reports", response_model=ReportResponse)
