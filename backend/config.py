@@ -13,7 +13,9 @@ class Settings(BaseSettings):
     AI_BACKEND: str = "ollama"
 
     # Ollama (default, free, local)
-    OLLAMA_URL: str = "http://localhost:11434"
+    # For Railway: Make sure Ollama is running and accessible
+    # For local Docker: Use host.docker.internal:11434 instead
+    OLLAMA_URL: str = os.environ.get("OLLAMA_URL", "http://localhost:11434")
     OLLAMA_MODEL: str = "qwen2.5:7b"
     OLLAMA_VL_MODEL: str = "qwen2.5vl:7b"  # Vision-language model for scanned PDFs
     OLLAMA_CONCURRENCY: int = 8              # Max concurrent Ollama calls during classification
