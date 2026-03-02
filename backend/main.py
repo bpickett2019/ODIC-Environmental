@@ -181,8 +181,10 @@ app.add_middleware(
 from fastapi.staticfiles import StaticFiles
 static_dir = Path(__file__).parent.parent / "static"
 if static_dir.exists():
-    app.mount("/app", StaticFiles(directory=str(static_dir), html=True), name="frontend")
+    app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="frontend")
     logger.info(f"Mounted frontend static files from {static_dir}")
+else:
+    logger.warning(f"Static directory not found at {static_dir}. Frontend will not be served. This is OK for API-only deployments.")
 
 
 @app.on_event("startup")

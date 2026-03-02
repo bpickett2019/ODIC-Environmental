@@ -1,21 +1,75 @@
+# Fly.io Configuration for ODIC Environmental ESA Report Assembly
+# Full-stack app: React frontend + FastAPI backend + SQLite database
+
 app = "odic-esa"
-primary_region = "ord"
+primary_region = "sfo"  # San Francisco (closest to California users)
 
 [build]
   dockerfile = "Dockerfile.prod"
 
+# Environment Variables (set via CLI for secrets)
 [env]
   AI_BACKEND = "anthropic"
+  DATABASE_URL = "sqlite:////data/reports.db"
 
+# Persistent volume for SQLite database
+[[mounts]]
+  source = "odic_data"
+  destination = "/data"
+
+# Services Configuration
 [[services]]
   internal_port = 8000
   processes = ["app"]
   protocol = "tcp"
-  
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+
+  # HTTP Port (auto-redirect to HTTPS in production)
   [[services.ports]]
     handlers = ["http"]
     port = 80
   
+  # HTTPS Port
   [[services.ports]]
     handlers = ["tls", "http"]
     port = 443
+
+  # Health Check Configuration
+  [services.http_checks]
+    enabled = true
+    interval = 30000  # ms
+    timeout = 10000   # ms
+    grace_period = "30s"
+    method = "GET"
+    path = "/health"
+    protocol = "http"
+    tls_skip_verify = false
+
+# Metrics
+[metrics]
+  port = 9090
+
+# Logging
+[logging]
+  enabled = true
+  level = "info"
+
+# Deployment Strategy
+[deploy]
+  release_command = "echo 'ODIC Environmental ESA Report Assembly - Ready for deployment'"
+  strategy = "rolling"
+  max_unavailable = 0
+
+# Run Configuration
+[processes]
+  app = "python -m uvicorn main:app --host 0.0.0.0 --port 8000 --loop uvloop"
+
+# Scaling (can be adjusted if needed)
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
