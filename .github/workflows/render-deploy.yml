@@ -1,0 +1,36 @@
+name: Deploy to Render
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trigger Render Deployment
+        run: |
+          if [ -z "$RENDER_SERVICE_ID" ]; then
+            echo "⚠️  RENDER_SERVICE_ID not configured"
+            echo "To auto-deploy to Render, set RENDER_SERVICE_ID secret in GitHub"
+            echo "Otherwise, manually deploy: https://dashboard.render.com/"
+            exit 0
+          fi
+          
+          curl --request POST \
+            --url https://api.render.com/deploy/$RENDER_SERVICE_ID?key=${{ secrets.RENDER_API_KEY }} \
+            || echo "⚠️  Render deployment trigger failed (API key not configured)"
+        continue-on-error: true
+
+      - name: Build notification
+        run: |
+          echo "✓ Code pushed to main"
+          echo "✓ Render will auto-build from Dockerfile.prod if webhook configured"
+          echo "✓ Check progress at: https://dashboard.render.com/"

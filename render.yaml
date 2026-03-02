@@ -4,8 +4,17 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile.prod
     autoDeploy: false
+    healthCheckPath: /health
     envVars:
       - key: AI_BACKEND
         value: anthropic
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: DATABASE_URL
+        value: sqlite:////data/reports.db
+      - key: LIBREOFFICE_PATH
+        value: soffice
+      - key: GHOSTSCRIPT_PATH
+        value: gs
+      - key: TESSERACT_PATH
+        value: tesseract

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Loader2, RefreshCw, Settings2, Download, FileText } from 'lucide-react';
 import { useReportStore } from '../stores/reportStore';
-import { getReportDownloadUrl, getAutoDownloadUrl } from '../api/client';
+import { getAutoDownloadUrl } from '../api/client';
 import { UploadOverlay } from './UploadOverlay';
 import { ProcessingOverlay } from './ProcessingOverlay';
 import { Sidebar } from './Sidebar';

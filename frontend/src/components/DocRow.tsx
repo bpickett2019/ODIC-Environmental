@@ -129,7 +129,9 @@ export function DocRow({
             </button>
           )}
           {doc.has_docx_source && !onEdit && (
-            <Pencil size={10} className="text-purple-400 shrink-0" title="Editable DOCX" />
+            <div className="text-purple-400 shrink-0" title="Editable DOCX">
+              <Pencil size={10} />
+            </div>
           )}
 
           {doc.page_count != null && doc.page_count > 0 && (
