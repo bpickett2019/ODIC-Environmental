@@ -1,0 +1,27 @@
+name: Deploy to Heroku
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Deploy to Heroku
+        uses: akhileshns/heroku-deploy@v3.13.15
+        with:
+          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
+          heroku_app_name: odic-esa-app
+          heroku_email: ${{ secrets.HEROKU_EMAIL }}
+          dockerfile_path: Dockerfile.prod
+          docker: true
+        env:
+          HD_AI_BACKEND: anthropic
+          HD_ANTHROPIC_API_KEY: sk-ant-oat01-SDTNBb2FNQf3fYU6NcbWJSRZqJDZHy4p2M4N3mmnRq6bAaDtUSUnwG9GWMEbE7UAQnU nwqS7lABp6Mcdla-GxA-6vfLWQAA
